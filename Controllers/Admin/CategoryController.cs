@@ -22,10 +22,13 @@ namespace ecommerce.Controllers.Admin
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Category>>> GetCategories()
+        public async Task<ActionResult<IEnumerable<PaginatedList<Category>>>> GetCategories()
         {
-            var categories = await _context.Categories.ToListAsync();
-            return Ok(categories);
+            var categories = _context.Categories.AsQueryable();
+            int page;
+            int.TryParse(HttpContext.Request.Query["page"].ToString(),out page);
+            var paginatedCategories = await PaginatedList<Category>.CreateAsync(categories,page,1);
+            return Ok(paginatedCategories);
         }
 
         [HttpGet("{id}")]
