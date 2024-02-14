@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 namespace ecommerce.Controllers.Admin
 {
     [ApiController]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [Route("api/admin/categories")]
     public class CategoryController : ControllerBase
     {
@@ -22,6 +22,7 @@ namespace ecommerce.Controllers.Admin
         }
 
         [HttpGet]
+
         public async Task<ActionResult<IEnumerable<PaginatedList<Category>>>> GetCategories()
         {
             var categories = _context.Categories.AsQueryable();

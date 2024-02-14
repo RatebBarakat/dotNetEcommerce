@@ -6,13 +6,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using ecommerce.Interfaces;
-using ecommerce.Hepers;
-using FluentValidation.AspNetCore;
 using ecommerce.Validators;
 using FluentValidation;
 using static ecommerce.Filters.GuestOnly;
 using ecommerce.Filters;
 using Microsoft.OpenApi.Models;
+using ecommerce.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,6 +51,9 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+var services = builder.Services;
+var configuration = builder.Configuration;
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("all", builder =>
@@ -69,10 +71,11 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(conn
 
 builder.Services.AddIdentity<User, IdentityRole>(options =>
 {
-    options.Password.RequiredLength = 8;
+    options.SignIn.RequireConfirmedEmail = true; 
 })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
+
 
 builder.Services.AddAuthentication(options =>
 {
@@ -100,7 +103,13 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         }
     };
+}).AddGoogle(googleOptions =>
+{
+    googleOptions.ClientId = configuration["Google:ClientId"];
+    googleOptions.ClientSecret = configuration["Google:ClientSecret"];
+    googleOptions.CallbackPath = "/google/callback";
 });
+;
 
 
 var app = builder.Build();

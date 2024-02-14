@@ -7,7 +7,9 @@ namespace ecommerce.Interfaces
     {
         public Task<IActionResult> RegisterUser(RegisterUser user);
         public Task<bool> CheckUserCredentials(LoginUser user);
-        public string GenerateJwtToken(string email);
+        public Task<string?> GenerateJwtToken(string email);
         public Task<object?> GetUserDetails();
+        public Task<IActionResult> ConfirmEmail(string userId, string token);
+
     }
 }

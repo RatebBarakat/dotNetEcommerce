@@ -1,34 +1,30 @@
-﻿using Azure;
-using Azure.Core;
+﻿using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using System.Security.Claims;
+using System.Text;
 using ecommerce.Data;
 using ecommerce.Interfaces;
 using ecommerce.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Collections.Generic;
-using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using System.Security.Claims;
-using System.Text;
 
-namespace ecommerce.Hepers
+namespace ecommerce.Helpers
 {
     public class AuthService : IAuthService
     {
         private readonly UserManager<User> _userManager;
+        private readonly SignInManager<User> _signInManager;
         private readonly IConfiguration _configuration;
-        private readonly SignInManager<User> _loginManager;
         private readonly AppDbContext _dbContext;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public AuthService(UserManager<User> userManager, SignInManager<User> loginManager,
+        public AuthService(UserManager<User> userManager, SignInManager<User> signInManager,
             IConfiguration configuration, AppDbContext dbContext, IHttpContextAccessor httpContextAccessor)
         {
             _userManager = userManager;
-            _loginManager = loginManager;
+            _signInManager = signInManager;
             _configuration = configuration;
             _dbContext = dbContext;
             _httpContextAccessor = httpContextAccessor;
@@ -46,14 +42,35 @@ namespace ecommerce.Hepers
 
             if (result.Succeeded)
             {
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
+
+                var confirmationLink = $"{_configuration["AppBaseUrl"]}/api/user/confirm-email?userId={identityUser.Id}&token={token}";
+
+
+
                 return new OkResult();
             }
             else
             {
                 var errors = result.Errors.Select(error => error.Description).ToList();
-
                 return new BadRequestObjectResult(new { Errors = errors });
             }
+        }
+
+        public async Task<IActionResult> ConfirmEmail(string userId, string token)
+        {
+            if (userId == null || token == null)
+                return new BadRequestResult();
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return new BadRequestResult();
+
+            var result = await _userManager.ConfirmEmailAsync(user, token);
+            if (result.Succeeded)
+                return new OkResult();
+
+            return new BadRequestResult();
         }
 
         public async Task<object?> GetUserDetails()
@@ -63,7 +80,7 @@ namespace ecommerce.Hepers
 
             if (emailClaim != null)
             {
-                var data =  await _userManager.FindByEmailAsync(emailClaim);
+                var data = await _userManager.FindByEmailAsync(emailClaim);
                 return new
                 {
                     name = data.UserName,
@@ -75,24 +92,30 @@ namespace ecommerce.Hepers
             return null;
         }
 
-        public string GenerateJwtToken(string email)
+        public async Task<string?> GenerateJwtToken(string email)
         {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var claims = new[]
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user != null && user.EmailConfirmed)
             {
-                new Claim(ClaimTypes.Email, email)
-            };
+                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+                var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var token = new JwtSecurityToken(_configuration["Jwt:Issuer"],
-                _configuration["Jwt:Issuer"],
-                claims,
-                expires: DateTime.UtcNow.AddHours(1),
-                signingCredentials: creds
-             );
+                var claims = new[]
+                {
+                    new Claim(ClaimTypes.Email, email),
+                };
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+                var token = new JwtSecurityToken(_configuration["Jwt:Issuer"],
+                    _configuration["Jwt:Issuer"],
+                    claims,
+                    expires: DateTime.UtcNow.AddHours(1),
+                    signingCredentials: creds
+                );
+
+                return new JwtSecurityTokenHandler().WriteToken(token);
+            }
+
+            return null; 
         }
 
         public async Task<bool> CheckUserCredentials(LoginUser loginuser)
@@ -101,18 +124,17 @@ namespace ecommerce.Hepers
             {
                 var user = await _userManager.FindByEmailAsync(loginuser.Email);
 
-                if (user is null)
+                if (user is null || !user.EmailConfirmed)
                     return false;
 
-                var passwordValid = await _userManager.CheckPasswordAsync(user, loginuser.Password);
+                var signInResult = await _signInManager.PasswordSignInAsync(user, loginuser.Password, false, lockoutOnFailure: false);
 
-                return passwordValid;
+                return signInResult.Succeeded;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return false;
             }
         }
-
     }
 }
