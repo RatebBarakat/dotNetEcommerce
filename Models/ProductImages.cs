@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace ecommerce.Models
 {
@@ -8,7 +9,7 @@ namespace ecommerce.Models
         public string Name { get; set; }
         [ForeignKey("Products")]
         public int ProductId { get; set; }
-
-        public Product product { get; set; }
+        [JsonIgnore]
+        public virtual Product product { get; set; }
     }
 }

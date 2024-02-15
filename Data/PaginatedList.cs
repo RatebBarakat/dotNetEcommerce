@@ -4,10 +4,10 @@ namespace ecommerce.Data
 {
     public class PaginatedList<T> 
     {
-        public int page { get; private set; }
+        public int page { get; set; }
 
-        public ICollection<T> data { get; private set; }
-        public int total { get; private set; }
+        public ICollection<T> data { get; set; }
+        public int total { get; set; }
 
         public PaginatedList(List<T> items, int count, int pageIndex, int pageSize)
         {

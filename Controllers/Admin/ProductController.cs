@@ -14,21 +14,29 @@ namespace ecommerce.Controllers.Admin
     public class ProductController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IWebHostEnvironment _env;
 
-        public ProductController(AppDbContext context)
+        public ProductController(AppDbContext context,IWebHostEnvironment env)
         {
             _context = context;
+            _env = env;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PaginatedList<Product>>>> GetProducts()
+        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts()
         {
-            var Products = _context.Products.Include(p => p.Category).AsQueryable();
+            var products = _context.Products.Include(p => p.Category).Include(c => c.Images).AsQueryable();
             int page;
             int.TryParse(HttpContext.Request.Query["page"].ToString(), out page);
-            var result = await PaginatedList<Product>.CreateAsync(Products, page, 10);
+
+            string baseUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}";
+
+            var paginatedProducts = await PaginatedList<Product>.CreateAsync(products, page, 10);
+            var data = paginatedProducts.data.Select(r => r.ToDto(baseUrl)).ToList();
+            var result = new PaginatedList<ProductDTO>(data, paginatedProducts.total, page, 10);
             return Ok(result);
         }
+
 
         [HttpGet("{id}")]
         public async Task<ActionResult<Product>> GetProduct(int id)
@@ -44,15 +52,12 @@ namespace ecommerce.Controllers.Admin
         }
 
         [HttpPost]
-        [HttpPost]
-        public async Task<ActionResult<Product>> CreateProduct([FromForm] ProductDTO productDTO)
+        public async Task<ActionResult<Product>> CreateProduct([FromForm] CreateProductDTO productDTO)
         {
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
-
-            var imageFileName = await UploadImage(productDTO.Image);
 
             var product = new Product
             {
@@ -61,9 +66,18 @@ namespace ecommerce.Controllers.Admin
                 Price = productDTO.Price,
                 SmallDescription = productDTO.SmallDescription,
                 Description = productDTO.Description,
-                Image = imageFileName,
-                CategoryId = productDTO.CategoryId
+                CategoryId = productDTO.CategoryId,
+                Images = new List<ProductImages>()  
             };
+
+            foreach (var image in productDTO.Images)
+            {
+                var imageFileName = await UploadImage(image);
+                product.Images.Add(new ProductImages
+                {
+                    Name = imageFileName,
+                });
+            }
 
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
@@ -71,8 +85,9 @@ namespace ecommerce.Controllers.Admin
             return Ok(product);
         }
 
+
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateProduct(int id, [FromForm] ProductDTO productDTO)
+        public async Task<IActionResult> UpdateProduct(int id, [FromForm] CreateProductDTO productDTO)
         {
             if (!ModelState.IsValid)
             {
@@ -86,19 +101,18 @@ namespace ecommerce.Controllers.Admin
                 return NotFound();
             }
 
-            if (!string.IsNullOrEmpty(existingProduct.Image))
+     /*       if (!string.IsNullOrEmpty(existingProduct.Image))
             {
                 await DeleteImage(existingProduct.Image);
-            }
+            }*/
 
-            var newImageFileName = await UploadImage(productDTO.Image);
-
+/*            var newImageFileName = await UploadImage(productDTO.Image);
+*/
             existingProduct.Name = productDTO.Name;
             existingProduct.Quantity = productDTO.Quantity;
             existingProduct.Price = productDTO.Price;
             existingProduct.SmallDescription = productDTO.SmallDescription;
             existingProduct.Description = productDTO.Description;
-            existingProduct.Image = newImageFileName;
             existingProduct.CategoryId = productDTO.CategoryId;
 
             try
