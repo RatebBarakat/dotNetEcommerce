@@ -12,6 +12,9 @@ using static ecommerce.Filters.GuestOnly;
 using ecommerce.Filters;
 using Microsoft.OpenApi.Models;
 using ecommerce.Helpers;
+using ecommerce.Attributes;
+using ecommerce.Handlers;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -64,6 +67,14 @@ builder.Services.AddCors(options =>
                .AllowCredentials();
     });
 });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("EmailConfirmedPolicy", policy =>
+        policy.Requirements.Add(new EmailConfirmedRequirement()));
+});
+
+services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();
 
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
