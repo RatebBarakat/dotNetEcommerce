@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace ecommerce.Models
 {
@@ -12,7 +13,7 @@ namespace ecommerce.Models
 
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
-
-    /*public ICollection<Product> Products { get; }*/ 
+        [JsonIgnore]
+        public virtual ICollection<Product> Products { get; }
     }
 }

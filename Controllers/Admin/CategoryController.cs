@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 namespace ecommerce.Controllers.Admin
 {
     [ApiController]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "EmailConfirmedPolicy")]
     [Route("api/admin/categories")]
     public class CategoryController : ControllerBase
     {
@@ -28,7 +28,7 @@ namespace ecommerce.Controllers.Admin
             var categories = _context.Categories.AsQueryable();
             int page;
             int.TryParse(HttpContext.Request.Query["page"].ToString(),out page);
-            var paginatedCategories = await PaginatedList<Category>.CreateAsync(categories,page,1);
+            var paginatedCategories = await PaginatedList<Category>.CreateAsync(categories,page,10);
             return Ok(paginatedCategories);
         }
 

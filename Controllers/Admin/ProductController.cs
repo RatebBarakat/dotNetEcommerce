@@ -21,10 +21,13 @@ namespace ecommerce.Controllers.Admin
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
+        public async Task<ActionResult<IEnumerable<PaginatedList<Product>>>> GetProducts()
         {
-            var Products = await _context.Products.ToListAsync();
-            return Ok(Products);
+            var Products = _context.Products.Include(p => p.Category).AsQueryable();
+            int page;
+            int.TryParse(HttpContext.Request.Query["page"].ToString(), out page);
+            var result = await PaginatedList<Product>.CreateAsync(Products, page, 10);
+            return Ok(result);
         }
 
         [HttpGet("{id}")]
@@ -152,9 +155,9 @@ namespace ecommerce.Controllers.Admin
 
             var filePath = Path.Combine(uploadsFolder, name);
 
-            if (System.IO.File.Exists(name))
+            if (System.IO.File.Exists(filePath))
             {
-                System.IO.File.Delete(name);
+                System.IO.File.Delete(filePath);
                 return true;
             }
             return false;

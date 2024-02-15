@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace ecommerce.Models
 {
@@ -21,8 +22,8 @@ namespace ecommerce.Models
         public int CategoryId { get; set; }
 
         public string Image {  get; set; }
-
-        public Category? Category { get; set; }
+        [JsonIgnore]
+        public virtual Category? Category { get; set; }
 
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
