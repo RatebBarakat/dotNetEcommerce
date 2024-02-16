@@ -19,12 +19,16 @@ namespace ecommerce.Handlers
         protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, EmailConfirmedRequirement requirement)
         {
             var emailClaim = context.User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email);
-            var userEmail = emailClaim?.Value; 
+            var userEmail = emailClaim?.Value;
 
-            var user = await _userManager.FindByEmailAsync(userEmail);
-            if (user != null && user.EmailConfirmed)
+            if (userEmail != null)
             {
-                context.Succeed(requirement);
+                var user = await _userManager.FindByEmailAsync(userEmail);
+
+                if (user != null && user.EmailConfirmed)
+                {
+                    context.Succeed(requirement);
+                }
             }
         }
     }

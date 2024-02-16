@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 
 namespace ecommerce.Models
 {
@@ -14,6 +14,6 @@ namespace ecommerce.Models
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
         [JsonIgnore]
-        public virtual ICollection<Product> Products { get; }
+        public virtual ICollection<Product>? Products { get; }
     }
 }

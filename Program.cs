@@ -8,13 +8,12 @@ using System.Text;
 using ecommerce.Interfaces;
 using ecommerce.Validators;
 using FluentValidation;
-using static ecommerce.Filters.GuestOnly;
-using ecommerce.Filters;
 using Microsoft.OpenApi.Models;
 using ecommerce.Helpers;
 using ecommerce.Attributes;
 using ecommerce.Handlers;
 using Microsoft.AspNetCore.Authorization;
+using ecommerce.Hepers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +53,12 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+builder.Services.AddStackExchangeRedisCache(redisOptions =>
+{
+    var config = builder.Configuration.GetConnectionString("Redis");
+    redisOptions.Configuration = config;
+});
+
 var services = builder.Services;
 var configuration = builder.Configuration;
 
@@ -75,6 +80,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();
+services.AddSingleton<IRedis, Redis>();
 
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -132,6 +138,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseStaticFiles();
 
 app.UseHttpsRedirection();
 

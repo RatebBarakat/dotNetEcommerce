@@ -22,10 +22,11 @@ namespace ecommerce.Data
 
         public static async Task<PaginatedList<T>> CreateAsync(IQueryable<T> source, int pageIndex, int pageSize)
         {
+            int page = pageIndex > 0 ? pageIndex : 1;
             var count = await source.CountAsync();
-            var items = await source.Skip((pageIndex - 1) * pageSize).Take(pageSize).ToListAsync();
+            var items = await source.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             var totalPages = (int)Math.Ceiling(count / (double)pageSize);
-            return new PaginatedList<T>(items, count, pageIndex, pageSize);
+            return new PaginatedList<T>(items, count, page, pageSize);
         }
 
     }

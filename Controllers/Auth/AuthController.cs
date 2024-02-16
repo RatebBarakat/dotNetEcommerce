@@ -4,8 +4,10 @@ using ecommerce.Interfaces;
 using ecommerce.Models;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace ecommerce.Controllers.Auth
 {
@@ -36,7 +38,7 @@ namespace ecommerce.Controllers.Auth
         public async Task<IActionResult> ConfirmEmail(string userId, string code)
         {
             var user = await _userManager.FindByIdAsync(userId);
-            var data =await _userManager.ConfirmEmailAsync(user, code);
+            var data = await _userManager.ConfirmEmailAsync(user, code);
             return Ok(data.Succeeded);
         }
 
@@ -115,13 +117,57 @@ namespace ecommerce.Controllers.Auth
             return BadRequest(new { Errors = "invalid login credentials" });
         }
 
-        [HttpPost("google/redirect")]
-        public async Task<IActionResult> GetGoogleRedirectUrl()
+        [HttpGet("google/callback")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ExternalLoginCallback(string? returnUrl = null, string? remoteError = null)
         {
-            var properties = await _signinManager.GetExternalLoginInfoAsync();
+            var info = await _signinManager.GetExternalLoginInfoAsync();
+            if (info is null)
+            {
+                return BadRequest("An error occurred");
+            }
 
-            return Ok(new { properties = properties.ProviderDisplayName });
+            var result = await _signinManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false);
+
+            if (result.Succeeded)
+            {
+                await _signinManager.UpdateExternalAuthenticationTokensAsync(info);
+                return Redirect(returnUrl);
+            }
+            else
+            {
+                var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+
+                var user = await _userManager.FindByEmailAsync(email);
+
+                if (user == null)
+                {
+                    user = new User
+                    {
+                        UserName = email,
+                        Email = email,
+                        EmailConfirmed = true
+                    };
+
+                    var createResult = await _userManager.CreateAsync(user);
+                    if (!createResult.Succeeded)
+                    {
+                        return BadRequest("User creation failed");
+                    }
+                }
+
+                var addLoginResult = await _userManager.AddLoginAsync(user, info);
+                if (!addLoginResult.Succeeded)
+                {
+                    return BadRequest("Adding external login failed");
+                }
+
+                await _signinManager.SignInAsync(user, isPersistent: false);
+
+                return Redirect(returnUrl);
+            }
         }
+
 
         [HttpPost("testmail")]
         public async Task<IActionResult> test(string email)
@@ -129,12 +175,20 @@ namespace ecommerce.Controllers.Auth
             var user = await _userManager.FindByEmailAsync(email);
             var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
             var url = Url.Action("confirm", "Auth", new { userId = user.Id, code = token });
-            var mail = SendEmailVerificationLink.SendAsync(email,token);
+            var mail = SendEmailVerificationLink.SendAsync(email, token);
 
-            return Ok(new { result = mail.IsCompletedSuccessfully });
+            return Ok(new { result = mail.Status });
         }
 
+        [AllowAnonymous]
+        [HttpGet("google/redirect")]
+        public IActionResult ExternalLogin(string provider)
+        {
+            var returnUrl = Url.Content("~/");
+            var redirectUrl = Url.Action("ExternalLoginCallback", "Auth", new { returnUrl = returnUrl});
+            var properties = _signinManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
 
-
+            return new ChallengeResult(provider, properties);
+        }
     }
 }

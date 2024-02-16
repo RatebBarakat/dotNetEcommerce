@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
-using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 
 namespace ecommerce.Models
 {
@@ -44,6 +44,7 @@ namespace ecommerce.Models
 
             var productDTO = new ProductDTO
             {
+                Id = product.Id,
                 Name = product.Name,
                 Quantity = product.Quantity,
                 Price = product.Price,
