@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using ecommerce.Models;
 using ecommerce.Data;
 using ecommerce.Dtos;
+using FluentValidation;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace ecommerce.Controllers.Admin
 {
@@ -15,22 +17,31 @@ namespace ecommerce.Controllers.Admin
     {
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
+        private readonly IValidator<CreateProductDTO> _productValidator;
+        private readonly IDistributedCache _redis;
 
-        public ProductController(AppDbContext context,IWebHostEnvironment env)
+        public ProductController(AppDbContext context,IWebHostEnvironment env, IValidator<CreateProductDTO> productValidator, IDistributedCache redis)
         {
             _context = context;
             _env = env;
+            _productValidator = productValidator;
+            _redis = redis;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts()
         {
-            var products = _context.Products.Include(p => p.Category).Include(c => c.Images).AsQueryable();
             int page;
             int.TryParse(HttpContext.Request.Query["page"].ToString(), out page);
+            int categoryFilter = 0;
+            int.TryParse(HttpContext.Request.Query["categoryFitler"].ToString(), out categoryFilter);
 
+            var products = _context.Products.Include(p => p.Category).Include(c => c.Images).AsQueryable();
+            if (categoryFilter != 0)
+            {
+                products.Where(p => p.CategoryId == categoryFilter);
+            }
             string baseUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}";
-
             var paginatedProducts = await PaginatedList<Product>.CreateAsync(products, page, 10);
             var data = paginatedProducts.data.Select(r => r.ToDto(baseUrl)).ToList();
             var result = new PaginatedList<ProductDTO>(data, paginatedProducts.total, page, 10);
@@ -54,9 +65,11 @@ namespace ecommerce.Controllers.Admin
         [HttpPost]
         public async Task<ActionResult<Product>> CreateProduct([FromForm] CreateProductDTO productDTO)
         {
-            if (!ModelState.IsValid)
+            var validationResult = await _productValidator.ValidateAsync(productDTO);
+
+            if (!validationResult.IsValid)
             {
-                return BadRequest(ModelState);
+                return BadRequest(new { Message = "errors", Errors = validationResult.Errors.Select(e => e.ErrorMessage) });
             }
 
             var product = new Product

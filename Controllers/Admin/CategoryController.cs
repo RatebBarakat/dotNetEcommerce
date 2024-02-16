@@ -6,6 +6,9 @@ using Microsoft.EntityFrameworkCore;
 using ecommerce.Models;
 using ecommerce.Data;
 using Microsoft.AspNetCore.Authorization;
+using ecommerce.Interfaces;
+using System.Collections;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace ecommerce.Controllers.Admin
 {
@@ -14,11 +17,13 @@ namespace ecommerce.Controllers.Admin
     [Route("api/admin/categories")]
     public class CategoryController : ControllerBase
     {
-        private readonly AppDbContext _context; 
+        private readonly AppDbContext _context;
+        private readonly IRedis _redis;
 
-        public CategoryController(AppDbContext context)
+        public CategoryController(AppDbContext context,IRedis redis)
         {
             _context = context;
+            _redis = redis;
         }
 
         [HttpGet]
@@ -30,6 +35,25 @@ namespace ecommerce.Controllers.Admin
             int.TryParse(HttpContext.Request.Query["page"].ToString(),out page);
             var paginatedCategories = await PaginatedList<Category>.CreateAsync(categories,page,10);
             return Ok(paginatedCategories);
+        }
+
+        [HttpGet("all")]
+        public async Task<ActionResult<IEnumerable<Category>>> GetAllCategories()
+        {
+            IEnumerable<Category> categories;
+            var categoriesFromCache = await _redis.GetCachedDataAsync<IEnumerable<Category>>("categories");
+            if (categoriesFromCache is not null)
+            {
+                categories = categoriesFromCache;
+            } else
+            {
+                categories = await _context.Categories.ToListAsync();
+                await _redis.SetCachedDataAsync("categories",categories, new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpiration = DateTime.Now.AddHours(1),
+                });
+            }
+            return Ok(categories);
         }
 
         [HttpGet("{id}")]
