@@ -14,6 +14,8 @@ using ecommerce.Attributes;
 using ecommerce.Handlers;
 using Microsoft.AspNetCore.Authorization;
 using ecommerce.Hepers;
+using static Org.BouncyCastle.Math.EC.ECCurve;
+using ecommerce.Policies;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -73,22 +75,27 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+
+services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();
+services.AddSingleton<IRedis, Redis>();
+services.AddTransient<PermissionHelper>();
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("EmailConfirmedPolicy", policy =>
         policy.Requirements.Add(new EmailConfirmedRequirement()));
 });
 
-services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();
-services.AddSingleton<IRedis, Redis>();
 
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
-builder.Services.AddIdentity<User, IdentityRole>(options =>
+builder.Services.AddIdentity<User, Role>(options =>
 {
-    options.SignIn.RequireConfirmedEmail = true; 
+    options.SignIn.RequireConfirmedEmail = true;
 })
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();

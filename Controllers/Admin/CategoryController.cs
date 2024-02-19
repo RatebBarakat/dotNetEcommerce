@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using ecommerce.Interfaces;
 using System.Collections;
 using Microsoft.Extensions.Caching.Distributed;
+using ecommerce.Attributes;
 
 namespace ecommerce.Controllers.Admin
 {
@@ -27,7 +28,7 @@ namespace ecommerce.Controllers.Admin
         }
 
         [HttpGet]
-
+        [HasPermissions("Permission:create-categories")]
         public async Task<ActionResult<IEnumerable<PaginatedList<Category>>>> GetCategories()
         {
             var categories = _context.Categories.AsQueryable();
