@@ -72,6 +72,7 @@ namespace ecommerce.Controllers.Auth
         public async Task<IActionResult> getUserDetails()
         {
             var user = await _authService.GetUserDetails();
+
             if (user is null)
             {
                 return BadRequest();
