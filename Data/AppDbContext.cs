@@ -39,6 +39,11 @@ namespace ecommerce.Data
                 .HasForeignKey(e => e.CategoryId)
                 .IsRequired(false);
 
+            builder.Entity<Product>()
+                .HasMany(e => e.Images)
+                .WithOne(e => e.product)
+                .HasForeignKey(e => e.ProductId);
+
             builder.Entity<RolePermission>()
                .HasOne(bc => bc.Role)
                .WithMany(b => b.RolePermissions)
