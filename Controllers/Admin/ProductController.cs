@@ -18,52 +18,45 @@ namespace ecommerce.Controllers.Admin
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
         private readonly IValidator<CreateProductDTO> _productValidator;
-        private readonly IDistributedCache _redis;
 
-        public ProductController(AppDbContext context,IWebHostEnvironment env, IValidator<CreateProductDTO> productValidator, IDistributedCache redis)
+        public ProductController(AppDbContext context, IWebHostEnvironment env, IValidator<CreateProductDTO> productValidator)
         {
             _context = context;
             _env = env;
             _productValidator = productValidator;
-            _redis = redis;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts()
+        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts(int page = 1, int pageSize = 10, int categoryFilter = 0)
         {
-            int page;
-            int.TryParse(HttpContext.Request.Query["page"].ToString(), out page);
-            int categoryFilter = 0;
-            int.TryParse(HttpContext.Request.Query["categoryFitler"].ToString(), out categoryFilter);
-
             var products = _context.Products.Include(p => p.Category).Include(c => c.Images).AsQueryable();
             if (categoryFilter != 0)
             {
-                products.Where(p => p.CategoryId == categoryFilter);
+                products = products.Where(p => p.CategoryId == categoryFilter);
             }
             string baseUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}";
             var paginatedProducts = await PaginatedList<Product>.CreateAsync(products, page, 10);
             var data = paginatedProducts.data.Select(r => r.ToDto(baseUrl)).ToList();
-            var result = new PaginatedList<ProductDTO>(data, paginatedProducts.total, page, 10);
+            var result = new PaginatedList<ProductDTO>(data, paginatedProducts.total, paginatedProducts.page, 10);
             return Ok(result);
         }
 
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<Product>> GetProduct(int id)
+        public async Task<ActionResult<UpdateProductDto>> GetProduct(int id)
         {
-            var product = await _context.Products.FindAsync(id);
+            var product = await _context.Products.Include(p => p.Category).Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == id);
 
             if (product == null)
             {
                 return NotFound();
             }
-
-            return Ok(product);
+            string baseUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}";
+            return Ok(product.ToUpdateDto(baseUrl));
         }
 
         [HttpPost]
-        public async Task<ActionResult<Product>> CreateProduct([FromForm] CreateProductDTO productDTO)
+        public async Task<ActionResult<Product>> CreateProduct(CreateProductDTO productDTO)
         {
             var validationResult = await _productValidator.ValidateAsync(productDTO);
 
@@ -80,7 +73,7 @@ namespace ecommerce.Controllers.Admin
                 SmallDescription = productDTO.SmallDescription,
                 Description = productDTO.Description,
                 CategoryId = productDTO.CategoryId,
-                Images = new List<ProductImages>()  
+                Images = new List<ProductImages>()
             };
 
             foreach (var image in productDTO.Images)
@@ -114,13 +107,13 @@ namespace ecommerce.Controllers.Admin
                 return NotFound();
             }
 
-     /*       if (!string.IsNullOrEmpty(existingProduct.Image))
-            {
-                await DeleteImage(existingProduct.Image);
-            }*/
+            /*       if (!string.IsNullOrEmpty(existingProduct.Image))
+                   {
+                       await DeleteImage(existingProduct.Image);
+                   }*/
 
-/*            var newImageFileName = await UploadImage(productDTO.Image);
-*/
+            /*            var newImageFileName = await UploadImage(productDTO.Image);
+            */
             existingProduct.Name = productDTO.Name;
             existingProduct.Quantity = productDTO.Quantity;
             existingProduct.Price = productDTO.Price;

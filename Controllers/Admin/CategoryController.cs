@@ -33,7 +33,15 @@ namespace ecommerce.Controllers.Admin
         {
             var categories = _context.Categories.AsQueryable();
             int page;
+            string search = "";
             int.TryParse(HttpContext.Request.Query["page"].ToString(),out page);
+            search = HttpContext.Request.Query["search"];
+
+            if (!string.IsNullOrEmpty(search))
+            {
+                categories = categories.Where(c => c.Name.ToLower().Contains(search.ToLower()));
+            }
+
             var paginatedCategories = await PaginatedList<Category>.CreateAsync(categories,page,10);
             return Ok(paginatedCategories);
         }
