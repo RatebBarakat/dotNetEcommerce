@@ -39,25 +39,25 @@ namespace ecommerce.Controllers.Admin
 
 
         [HttpPost]
-        public async Task<ActionResult> CreateRole(string Name)
+        public async Task<ActionResult> CreateRole(Role role)
         {
-            if (!await _roleManager.RoleExistsAsync(Name))
+            if (!await _roleManager.RoleExistsAsync(role.Name))
             {
-                var role = await _roleManager.CreateAsync(new Role { Name = Name });
+                var roleCreated = await _roleManager.CreateAsync(new Role { Name = role.Name });
                 return CreatedAtAction("CreateRole", new { id = role });
             }
             return BadRequest("already exisists");
         }
 
         [HttpPut]
-        public async Task<ActionResult> UpdateRole(string Id, string Name)
+        public async Task<ActionResult> UpdateRole(string Id, Role role)
         {
-            var role = _roleManager.Roles.FirstOrDefault(r => r.Id == Id);
-            if (role is null)
+            var roleEntry = _roleManager.Roles.FirstOrDefault(r => r.Id == Id);
+            if (roleEntry is null)
             {
                 return BadRequest("role not found");
             }
-            await _roleManager.SetRoleNameAsync(role, Name);
+            await _roleManager.SetRoleNameAsync(roleEntry, role.Name);
             return NoContent();
         }
 
@@ -76,30 +76,31 @@ namespace ecommerce.Controllers.Admin
         [HttpPut("sync")]
         public async Task<ActionResult> SyncPermissions(string RoleId, List<string> permissions)
         {
-            var role = await _context.Roles.FirstAsync(r => r.Id == RoleId);
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == RoleId);
 
             if (role is null)
             {
                 return BadRequest("Role not found");
             }
 
-            role.RolePermissions.Clear();
+            var existingRolePermissions = await _context.RolePermission.Where(rp => rp.RoleId == RoleId).ToListAsync();
+            _context.RolePermission.RemoveRange(existingRolePermissions);
 
             foreach (var permission in permissions)
             {
-                var permissionentry = await _context.Permissions.FirstOrDefaultAsync(p => p.Name == permission);
+                var permissionEntry = await _context.Permissions.FirstOrDefaultAsync(p => p.Name == permission);
 
-                if (permissionentry is null)
+                if (permissionEntry != null)
                 {
-                    continue;
+                    role.RolePermissions.Add(new RolePermission { PermissionId = permissionEntry.Id });
                 }
-                role.RolePermissions.Add(new RolePermission { PermissionId = permissionentry.Id });
             }
 
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
+
 
     }
 }
