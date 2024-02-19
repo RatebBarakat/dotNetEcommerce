@@ -61,5 +61,35 @@ namespace ecommerce.Models
             }
             return productDTO;
         }
+
+        public static UpdateProductDto ToUpdateDto(this Product product, string baseUrl)
+        {
+            if (product == null)
+                return null;
+
+            var productDTO = new UpdateProductDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Quantity = product.Quantity,
+                Price = product.Price,
+                SmallDescription = product.SmallDescription,
+                Description = product.Description,
+                CategoryId = product.CategoryId,
+                Images = new()
+            };
+
+            var images = product.Images.ToList();
+            foreach ( var image in images )
+            {
+                var imagePath = $"/uploads/images/{image.Name}";
+                productDTO.Images.Add(new ProductImages
+                {
+                    Id = image.Id,
+                    Name = $"{baseUrl}{imagePath}",
+                });
+            }
+            return productDTO;
+        }
     }
 }
