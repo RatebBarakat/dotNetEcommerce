@@ -127,13 +127,7 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         }
     };
-}).AddGoogle(googleOptions =>
-{
-    googleOptions.ClientId = configuration["Google:ClientId"];
-    googleOptions.ClientSecret = configuration["Google:ClientSecret"];
-    googleOptions.CallbackPath = "/google/callback";
 });
-;
 
 
 var app = builder.Build();
