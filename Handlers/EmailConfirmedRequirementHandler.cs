@@ -29,6 +29,13 @@ namespace ecommerce.Handlers
                 {
                     context.Succeed(requirement);
                 }
+                else
+                {
+                    context.Fail();
+                    var httpContext = context.Resource as Microsoft.AspNetCore.Http.HttpContext;
+                    httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
+                    await httpContext.Response.WriteAsync("Email not confirmed.");
+                }
             }
         }
     }

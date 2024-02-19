@@ -1,4 +1,5 @@
-﻿using ecommerce.Models;
+﻿using ecommerce.Dtos;
+using ecommerce.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ecommerce.Interfaces
@@ -8,7 +9,7 @@ namespace ecommerce.Interfaces
         public Task<IActionResult> RegisterUser(RegisterUser user);
         public Task<bool> CheckUserCredentials(LoginUser user);
         public Task<string?> GenerateJwtToken(string email);
-        public Task<object?> GetUserDetails();
+        public Task<UserWithPermissionsDTO?> GetUserDetails();
         public Task<IActionResult> ConfirmEmail(string userId, string token);
 
     }

@@ -4,11 +4,14 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using ecommerce.Data;
+using ecommerce.Dtos;
 using ecommerce.Interfaces;
 using ecommerce.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using NuGet.Packaging;
 
 namespace ecommerce.Helpers
 {
@@ -16,18 +19,20 @@ namespace ecommerce.Helpers
     {
         private readonly UserManager<User> _userManager;
         private readonly SignInManager<User> _signInManager;
+        private readonly RoleManager<Role> _roleManager;
         private readonly IConfiguration _configuration;
         private readonly AppDbContext _dbContext;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
         public AuthService(UserManager<User> userManager, SignInManager<User> signInManager,
-            IConfiguration configuration, AppDbContext dbContext, IHttpContextAccessor httpContextAccessor)
+            IConfiguration configuration, AppDbContext dbContext, IHttpContextAccessor httpContextAccessor, RoleManager<Role> roleManager)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _configuration = configuration;
             _dbContext = dbContext;
             _httpContextAccessor = httpContextAccessor;
+            _roleManager = roleManager;
         }
 
         public async Task<IActionResult> RegisterUser(RegisterUser user)
@@ -45,8 +50,6 @@ namespace ecommerce.Helpers
                 var token = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
 
                 var confirmationLink = $"{_configuration["AppBaseUrl"]}/api/user/confirm-email?userId={identityUser.Id}&token={token}";
-
-
 
                 return new OkResult();
             }
@@ -73,22 +76,45 @@ namespace ecommerce.Helpers
             return new BadRequestResult();
         }
 
-        public async Task<object?> GetUserDetails()
+        public async Task<UserWithPermissionsDTO?> GetUserDetails()
         {
             var claimsIdentity = _httpContextAccessor.HttpContext.User.Identity;
             var emailClaim = ((ClaimsIdentity)claimsIdentity).FindFirst(ClaimTypes.Email)?.Value;
 
             if (emailClaim != null)
             {
-                var data = await _userManager.FindByEmailAsync(emailClaim);
-                return new
+                var user = await _userManager.FindByEmailAsync(emailClaim);
+                if (user != null)
                 {
-                    name = data.UserName,
-                    email = data.Email,
-                    is_email_confirmed = data.EmailConfirmed
-                };
-            }
+                    var roles = await _userManager.GetRolesAsync(user);
 
+                    var permissions = new HashSet<string>();
+                    foreach (var roleName in roles)
+                    {
+                        var role = await _roleManager.FindByNameAsync(roleName);
+                        if (role != null)
+                        {
+                            var rolePermissions = await _dbContext.RolePermission
+                                .Where(rp => rp.RoleId == role.Id)
+                                .Select(rp => rp.Permission.Name)
+                                .ToListAsync();
+
+                            permissions.AddRange(rolePermissions);
+                        }
+                    }
+
+                    return new UserWithPermissionsDTO
+                    {
+                        User = new UserDTO
+                        {
+                            Name = user.UserName,
+                            Email = user.Email,
+                            IsEmailConfirmed = user.EmailConfirmed
+                        },
+                        Permissions = permissions.ToList()
+                    };
+                }
+            }
             return null;
         }
 
@@ -115,7 +141,7 @@ namespace ecommerce.Helpers
                 return new JwtSecurityTokenHandler().WriteToken(token);
             }
 
-            return null; 
+            return null;
         }
 
         public async Task<bool> CheckUserCredentials(LoginUser loginuser)

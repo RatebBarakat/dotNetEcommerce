@@ -1,12 +1,20 @@
 ﻿using ecommerce.Attributes;
 using ecommerce.Requirements;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
+using System;
 
 namespace ecommerce.Policies
 {
     public class PermissionPolicyProvider : IAuthorizationPolicyProvider
-    {
+    {   
+        private DefaultAuthorizationPolicyProvider BackupPolicyProvider { get; }
         const string POLICY_PREFIX = "Permission:";
+
+        public PermissionPolicyProvider(IOptions<AuthorizationOptions> options)
+        {
+            BackupPolicyProvider = new DefaultAuthorizationPolicyProvider(options);
+        }
 
         public Task<AuthorizationPolicy> GetDefaultPolicyAsync() => Task.FromResult<AuthorizationPolicy>(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
@@ -20,13 +28,8 @@ namespace ecommerce.Policies
                 var policy = new AuthorizationPolicyBuilder().AddRequirements(new PermissionRequirement(permission)).Build();
                 return Task.FromResult(policy);
             }
-            else if (policyName.Equals("EmailConfirmedPolicy", StringComparison.OrdinalIgnoreCase))
-            {
-                var policy = new AuthorizationPolicyBuilder().AddRequirements(new EmailConfirmedRequirement()).Build();
-                return Task.FromResult(policy);
-            }
 
-            return Task.FromResult<AuthorizationPolicy>(null);
+            return BackupPolicyProvider.GetPolicyAsync(policyName);
         }
 
     }
