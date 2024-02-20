@@ -1,4 +1,5 @@
 ﻿using System.Linq;
+using System.Text.Json.Serialization;
 using ecommerce.Models;
 
 namespace ecommerce.Dtos
@@ -13,5 +14,6 @@ namespace ecommerce.Dtos
         public string Description { get; set; }
         public string image { get; set; }
         public int CategoryId { get; set; }
+        public CategoryDto? category { get; set; }
     }
 }
