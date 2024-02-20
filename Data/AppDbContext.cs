@@ -14,6 +14,7 @@ namespace ecommerce.Data
 
         public DbSet<Category> Categories {  get; set; }
         public DbSet<User> Users {  get; set; }
+        public DbSet<Profile> Profiles {  get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductImages> ProductImages { get; set; }
         public DbSet<Role> Roles { get; set; }
@@ -43,6 +44,9 @@ namespace ecommerce.Data
                 .HasMany(e => e.Images)
                 .WithOne(e => e.product)
                 .HasForeignKey(e => e.ProductId);
+
+            builder.Entity<Product>()
+                .HasOne(e => e.Category);
 
             builder.Entity<RolePermission>()
                .HasOne(bc => bc.Role)
