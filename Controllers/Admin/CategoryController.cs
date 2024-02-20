@@ -1,15 +1,15 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ecommerce.Models;
 using ecommerce.Data;
 using Microsoft.AspNetCore.Authorization;
 using ecommerce.Interfaces;
-using System.Collections;
 using Microsoft.Extensions.Caching.Distributed;
 using ecommerce.Attributes;
+using ecommerce.Excel;
+using FluentValidation;
+using ecommerce.Dtos;
+using ecommerce.Validators;
 
 namespace ecommerce.Controllers.Admin
 {
@@ -19,12 +19,14 @@ namespace ecommerce.Controllers.Admin
     public class CategoryController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ExcelValidator _excelValidator;
         private readonly IRedis _redis;
 
-        public CategoryController(AppDbContext context,IRedis redis)
+        public CategoryController(AppDbContext context, IRedis redis, ExcelValidator excelValidator)
         {
             _context = context;
             _redis = redis;
+            _excelValidator = excelValidator;
         }
 
         [HttpGet]
@@ -34,7 +36,7 @@ namespace ecommerce.Controllers.Admin
             var categories = _context.Categories.AsQueryable();
             int page;
             string search = "";
-            int.TryParse(HttpContext.Request.Query["page"].ToString(),out page);
+            int.TryParse(HttpContext.Request.Query["page"].ToString(), out page);
             search = HttpContext.Request.Query["search"];
 
             if (!string.IsNullOrEmpty(search))
@@ -42,7 +44,7 @@ namespace ecommerce.Controllers.Admin
                 categories = categories.Where(c => c.Name.ToLower().Contains(search.ToLower()));
             }
 
-            var paginatedCategories = await PaginatedList<Category>.CreateAsync(categories,page,10);
+            var paginatedCategories = await PaginatedList<Category>.CreateAsync(categories, page, 10);
             return Ok(paginatedCategories);
         }
 
@@ -54,16 +56,18 @@ namespace ecommerce.Controllers.Admin
             if (categoriesFromCache is not null)
             {
                 categories = categoriesFromCache;
-            } else
+            }
+            else
             {
                 categories = await _context.Categories.ToListAsync();
-                await _redis.SetCachedDataAsync("categories",categories, new DistributedCacheEntryOptions
+                await _redis.SetCachedDataAsync("categories", categories, new DistributedCacheEntryOptions
                 {
                     AbsoluteExpiration = DateTime.Now.AddHours(1),
                 });
             }
             return Ok(categories);
         }
+
 
         [HttpGet("{id}")]
         public async Task<ActionResult<Category>> GetCategory(int id)
@@ -90,6 +94,48 @@ namespace ecommerce.Controllers.Admin
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetCategory), new { id = category.Id }, category);
+        }
+
+        [HttpPost("import")]
+        public async Task<ActionResult<Category>> ImportFromExcel(IFormFile file)
+        {
+            try
+            {
+                var status = _excelValidator.Validate(file);
+                if (!status.IsValid)
+                {
+                    return BadRequest("invalid file");
+                }
+                List<Category> categories = new();
+                var excel = new ExcelImportService<Category>(file);
+                var Count = excel.GetCountOfRows();
+                for (int i = 1; i < Count + 1; i++)
+                {
+                    try
+                    {
+                        string Name = excel.GetAttributeValue("Name", i);
+                        if (string.IsNullOrWhiteSpace(Name))
+                        {
+                            continue;
+                        }
+                        _context.Categories.Add(
+                            new Category
+                            {
+                                Name = Name
+                            });
+                    }
+                    catch (Exception ex)
+                    {
+                        continue;
+                    }
+                }
+                await _context.SaveChangesAsync();
+                return Ok("categories imported successfully");
+            }
+            catch (Exception e)
+            {
+                return BadRequest("an error occure");
+            }
         }
 
         [HttpPut("{id}")]

@@ -16,31 +16,36 @@ namespace ecommerce.Controllers.Admin
     public class ProductController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly IWebHostEnvironment _env;
         private readonly IValidator<CreateProductDTO> _productValidator;
 
         public ProductController(AppDbContext context, IWebHostEnvironment env, IValidator<CreateProductDTO> productValidator)
         {
             _context = context;
-            _env = env;
             _productValidator = productValidator;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts(int page = 1, int pageSize = 10, int categoryFilter = 0)
+        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts(int page = 1, int pageSize = 10,
+            [FromQuery] int categoryFilter = 0, [FromQuery] string search = "")
         {
             var products = _context.Products.Include(p => p.Category).Include(c => c.Images).AsQueryable();
             if (categoryFilter != 0)
             {
                 products = products.Where(p => p.CategoryId == categoryFilter);
             }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                products = products.Where(p => p.Name.ToLower().Contains(search.ToLower()) || p.Description.ToLower().Contains(search.ToLower()));
+            }
+
             string baseUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}";
             var paginatedProducts = await PaginatedList<Product>.CreateAsync(products, page, 10);
+
             var data = paginatedProducts.data.Select(r => r.ToDto(baseUrl)).ToList();
             var result = new PaginatedList<ProductDTO>(data, paginatedProducts.total, paginatedProducts.page, 10);
             return Ok(result);
         }
-
 
         [HttpGet("{id}")]
         public async Task<ActionResult<UpdateProductDto>> GetProduct(int id)

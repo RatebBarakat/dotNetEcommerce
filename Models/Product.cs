@@ -50,7 +50,12 @@ namespace ecommerce.Models
                 Price = product.Price,
                 SmallDescription = product.SmallDescription,
                 Description = product.Description,
-                CategoryId = product.CategoryId
+                CategoryId = product.CategoryId,
+                category = new CategoryDto
+                {
+                    Id = product.Category.Id,
+                    Name = product.Category.Name
+                }
             };
 
             var firstImage = product.Images?.FirstOrDefault();
