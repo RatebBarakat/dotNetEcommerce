@@ -80,6 +80,7 @@ builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProv
 
 services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();
 services.AddSingleton<IRedis, Redis>();
+services.AddSingleton<ImageHelper>();
 services.AddTransient<PermissionHelper>();
 
 builder.Services.AddAuthorization(options =>
