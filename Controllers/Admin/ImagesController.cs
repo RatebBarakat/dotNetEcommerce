@@ -34,7 +34,7 @@ namespace ecommerce.Controllers.Admin
 
             if ((product.Images.Count + model.Images.Count) > 4)
             {
-                return BadRequest(new { message = "you cant upload more than  images" });
+                return BadRequest(new { message = $"you cant upload more than  images" });
             }
 
             foreach (var image in model.Images)

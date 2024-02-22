@@ -41,6 +41,7 @@ namespace ecommerce.Helpers
             {
                 UserName = user.UserName,
                 Email = user.Email,
+                TwoFactorEnabled = true
             };
 
             var result = await _userManager.CreateAsync(identityUser, user.Password);
@@ -153,9 +154,8 @@ namespace ecommerce.Helpers
                 if (user is null || !user.EmailConfirmed)
                     return false;
 
-                var signInResult = await _signInManager.PasswordSignInAsync(user, loginuser.Password, false, lockoutOnFailure: false);
-
-                return signInResult.Succeeded;
+                var signInResult = await _userManager.CheckPasswordAsync(user, loginuser.Password);
+                return signInResult;
             }
             catch (Exception)
             {

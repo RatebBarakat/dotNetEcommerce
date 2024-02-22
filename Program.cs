@@ -20,7 +20,10 @@ using ecommerce.Policies;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+}); ;
 
 builder.Services.AddValidatorsFromAssemblyContaining<LoginUserValidator>();
 
@@ -76,6 +79,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddScoped<ICartRepository, CartRepository>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 
 services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();

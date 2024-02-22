@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 
 namespace ecommerce.Models
 {

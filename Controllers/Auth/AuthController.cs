@@ -75,7 +75,7 @@ namespace ecommerce.Controllers.Auth
 
             if (user is null)
             {
-                return BadRequest();
+                return StatusCode(StatusCodes.Status401Unauthorized);
             }
             return Ok(new
             {

@@ -8,6 +8,9 @@ using ecommerce.Data;
 using ecommerce.Dtos;
 using FluentValidation;
 using Microsoft.Extensions.Caching.Distributed;
+using ecommerce.Excel;
+using ecommerce.Validators;
+using System.Text;
 
 namespace ecommerce.Controllers.Admin
 {
@@ -16,12 +19,15 @@ namespace ecommerce.Controllers.Admin
     public class ProductController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly ExcelValidator _excelValidator;
         private readonly IValidator<CreateProductDTO> _productValidator;
 
-        public ProductController(AppDbContext context, IWebHostEnvironment env, IValidator<CreateProductDTO> productValidator)
+        public ProductController(AppDbContext context, IWebHostEnvironment env, 
+            IValidator<CreateProductDTO> productValidator, ExcelValidator excelValidator)
         {
             _context = context;
             _productValidator = productValidator;
+            _excelValidator = excelValidator;
         }
 
         [HttpGet]
@@ -154,6 +160,22 @@ namespace ecommerce.Controllers.Admin
             return NoContent();
         }
 
+        [HttpPost("deleteMany")]
+        public async Task<IActionResult> DeleteManyProducts(DeleteManyDto model)
+        {
+            var Products = await _context.Products.Where(p => model.ids.Contains(p.Id)).ToListAsync();
+            if (Products == null)
+            {
+                return NotFound();
+            }
+
+            _context.Products.RemoveRange(Products);
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
         private async Task<string> UploadImage(IFormFile file)
         {
             var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", @"uploads/images");
@@ -187,5 +209,88 @@ namespace ecommerce.Controllers.Admin
             }
             return false;
         }
+
+        [HttpPost("import")]
+        public async Task<ActionResult<Product>> ImportFromExcel(IFormFile file)
+        {
+            try
+            {
+                var status = _excelValidator.Validate(file);
+                if (!status.IsValid)
+                {
+                    return BadRequest("invalid file");
+                }
+                List<Product> products = new();
+                var excel = new ExcelImportService<Product>(file);
+                var Count = excel.GetCountOfRows();
+                Dictionary<int,string> errorsRows = new();
+                for (int i = 2; i < Count + 2; i++)
+                {
+                    try
+                    {
+                        string? Name = excel.GetAttributeValue("Name", i);
+                        int Quantity;
+                        int.TryParse(excel.GetAttributeValue("Quantity", i), out Quantity);
+                        decimal Price;
+                        decimal.TryParse(excel.GetAttributeValue("Price", i).Trim(), out Price);
+                        string? SmallDescription = excel.GetAttributeValue("SmallDescription", i);
+                        string? Description = excel.GetAttributeValue("Description", i);
+                        string? categoryName = excel.GetAttributeValue("Category", i);
+                        int categoryId = await GetCategoryId(categoryName);
+                        errorsRows.Add(i, Price.ToString());
+
+                        _context.Products.Add(
+                            new Product
+                            {
+                                Name = Name,
+                                Quantity = Quantity,
+                                Price = Price,
+                                SmallDescription = SmallDescription ?? "",
+                                Description = Description ?? "",
+                                CategoryId = categoryId
+                            });
+                    }
+                    catch (Exception ex)
+                    {
+                        errorsRows.Add(i, ex.Message);
+                        continue;
+                    }
+                }
+                await _context.SaveChangesAsync();
+                return Ok(errorsRows.Count == 0 ? "categories imported successfully" : $"an error occurred in {string.Join(",",errorsRows.Values)}");
+            }
+            catch (Exception e)
+            {
+                return BadRequest($"an error occurred {e.Message} {e.InnerException}");
+            }
+        }
+
+        private async Task<int> GetCategoryId(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                throw new ArgumentNullException("name of category is required");
+            }
+
+            var category = await _context.Categories.FirstOrDefaultAsync(c => c.Name == name);
+
+            if (category != null)
+            {
+                return category.Id;
+            }
+            else
+            {
+                var newCat = await _context.Categories.AddAsync(new Category
+                {
+                    Name = name
+                });
+
+                await _context.SaveChangesAsync();
+
+                return newCat.Entity.Id;
+            }
+        }
+
+
     }
 }

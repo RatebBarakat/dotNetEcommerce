@@ -27,6 +27,7 @@ namespace ecommerce.Controllers.Admin
                     .ThenInclude(rp => rp.Permission)
                 .Select(r => new
                 {
+                    Id = r.Id,
                     Name = r.Name,
                     Permissions = r.RolePermissions.Select(rp => rp.Permission.Name).ToList()
                 })
@@ -37,6 +38,24 @@ namespace ecommerce.Controllers.Admin
             return Ok(paginatedRoles);
         }
 
+        [HttpGet("{id}")]
+        public async Task<ActionResult<IEnumerable<object>>> GetRoles(string id)
+        {
+            var role = await _context.Roles.Where(r => r.Id == id).FirstOrDefaultAsync();
+            return Ok(role);
+        }
+
+        [HttpGet("{id}/permissions")]
+        public async Task<ActionResult> GetPermissionsByRoleId(string id)
+        {
+            var permissions = await _context.Roles
+                .Where(r => r.Id == id)
+                .SelectMany(r => r.RolePermissions)
+                .Select(rp => new { rp.Permission.Id, rp.Permission.Name })
+                .ToListAsync();
+
+            return Ok(permissions);
+        }
 
         [HttpPost]
         public async Task<ActionResult> CreateRole(Role role)
@@ -49,22 +68,26 @@ namespace ecommerce.Controllers.Admin
             return BadRequest("already exisists");
         }
 
-        [HttpPut]
-        public async Task<ActionResult> UpdateRole(string Id, Role role)
+        [HttpPut("{id}")]
+        public async Task<ActionResult> UpdateRole(string id, Role role)
         {
-            var roleEntry = _roleManager.Roles.FirstOrDefault(r => r.Id == Id);
+            var roleEntry = await _roleManager.Roles.FirstOrDefaultAsync(r => r.Id == id);
+
             if (roleEntry is null)
             {
                 return BadRequest("role not found");
             }
-            await _roleManager.SetRoleNameAsync(roleEntry, role.Name);
+
+            roleEntry.Name = role.Name;
+            await _context.SaveChangesAsync();
+
             return NoContent();
         }
 
-        [HttpDelete]
-        public async Task<ActionResult> DeleteRole(string Id)
+        [HttpDelete("{id}")]
+        public async Task<ActionResult> DeleteRole(string id)
         {
-            var role = _roleManager.Roles.FirstOrDefault(r => r.Id == Id);
+            var role = _roleManager.Roles.FirstOrDefault(r => r.Id == id);
             if (role is null)
             {
                 return BadRequest("role not found");
@@ -73,22 +96,22 @@ namespace ecommerce.Controllers.Admin
             return NoContent();
         }
 
-        [HttpPut("sync")]
-        public async Task<ActionResult> SyncPermissions(string RoleId, List<string> permissions)
+        [HttpPut("{id}/sync")]
+        public async Task<ActionResult> SyncPermissions(string id, List<string> permissionsIds)
         {
-            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == RoleId);
+            var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == id);
 
             if (role is null)
             {
                 return BadRequest("Role not found");
             }
 
-            var existingRolePermissions = await _context.RolePermission.Where(rp => rp.RoleId == RoleId).ToListAsync();
+            var existingRolePermissions = await _context.RolePermission.Where(rp => rp.RoleId == id).ToListAsync();
             _context.RolePermission.RemoveRange(existingRolePermissions);
 
-            foreach (var permission in permissions)
+            foreach (var permId in permissionsIds)
             {
-                var permissionEntry = await _context.Permissions.FirstOrDefaultAsync(p => p.Name == permission);
+                var permissionEntry = await _context.Permissions.FirstOrDefaultAsync(p => p.Id == permId);
 
                 if (permissionEntry != null)
                 {

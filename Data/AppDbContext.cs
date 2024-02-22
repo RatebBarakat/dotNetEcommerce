@@ -14,6 +14,7 @@ namespace ecommerce.Data
 
         public DbSet<Category> Categories {  get; set; }
         public DbSet<User> Users {  get; set; }
+        public DbSet<Cart> Carts {  get; set; }
         public DbSet<Profile> Profiles {  get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductImages> ProductImages { get; set; }
@@ -40,9 +41,16 @@ namespace ecommerce.Data
                 .HasForeignKey(e => e.CategoryId)
                 .IsRequired(false);
 
+            builder.Entity<User>()
+                .HasMany(e => e.Carts)
+                .WithOne(e => e.User)
+                .HasForeignKey(e => e.UserId)
+                .IsRequired(false);
+
             builder.Entity<Product>()
                 .HasMany(e => e.Images)
                 .WithOne(e => e.product)
+                .OnDelete(DeleteBehavior.Cascade)
                 .HasForeignKey(e => e.ProductId);
 
             builder.Entity<Product>()

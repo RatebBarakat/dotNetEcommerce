@@ -109,7 +109,7 @@ namespace ecommerce.Controllers.Admin
                 List<Category> categories = new();
                 var excel = new ExcelImportService<Category>(file);
                 var Count = excel.GetCountOfRows();
-                for (int i = 1; i < Count + 1; i++)
+                for (int i = 2; i < Count + 2; i++)
                 {
                     try
                     {
@@ -182,6 +182,22 @@ namespace ecommerce.Controllers.Admin
             }
 
             _context.Categories.Remove(category);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        [HttpPost("deleteMany")]
+        public async Task<IActionResult> DeleteManyProducts(DeleteManyDto model)
+        {
+            var categories = await _context.Categories.Where(p => model.ids.Contains(p.Id)).ToListAsync();
+            if (categories == null)
+            {
+                return NotFound();
+            }
+
+            _context.Categories.RemoveRange(categories);
+
             await _context.SaveChangesAsync();
 
             return NoContent();
