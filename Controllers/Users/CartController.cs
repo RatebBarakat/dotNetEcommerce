@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ecommerce.Controllers.Users
 {
-    [Route("user/cart")]
+    [ApiController]
+    [Route("api/user/cart")]
     public class CartController : ControllerBase
     {
         private readonly ICartRepository _cartRepository;
@@ -17,23 +18,43 @@ namespace ecommerce.Controllers.Users
         [HttpGet]
         public async Task<IActionResult> GetCarts()
         {
-            var carts = await _cartRepository.GetItems();
-            return Ok(carts);
+            try
+            {
+                var carts = await _cartRepository.GetItems();
+                return Ok(carts);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         [HttpPost]
         public async Task<IActionResult> AddToCart(ProductCartDto productCartDto)
         {
-            await _cartRepository.AddToCart(productCartDto);
+            try
+            {
+                await _cartRepository.AddToCart(productCartDto);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
 
             return NoContent();
         }
 
-        [HttpPut]
-        public async Task<IActionResult> UpdateCart(UpdateProductCartDto productCartDto)
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateCart(int id, UpdateProductCartDto productCartDto)
         {
-            await _cartRepository.UpdateInCart(productCartDto);
-
+            try
+            {
+                await _cartRepository.UpdateInCart(id, productCartDto);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
             return NoContent();
         }
 
@@ -41,8 +62,14 @@ namespace ecommerce.Controllers.Users
 
         public async Task<IActionResult> AddToCart(int id)
         {
-            await _cartRepository.RemoveFromCart(id);
-
+            try
+            {
+                await _cartRepository.RemoveFromCart(id);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
             return NoContent();
         }
     }

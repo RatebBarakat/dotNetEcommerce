@@ -12,7 +12,7 @@ namespace ecommerce.Dtos
         public decimal Price { get; set; }
         public string SmallDescription { get; set; }
         public string Description { get; set; }
-        public string image { get; set; }
+        public string Image { get; set; }
         public int CategoryId { get; set; }
         public CategoryDto? category { get; set; }
     }

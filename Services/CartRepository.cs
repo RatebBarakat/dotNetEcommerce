@@ -25,7 +25,11 @@ namespace ecommerce.Hepers
         private async Task<User?> GetUserAsync()
         {
             var email = _httpContextAccessor.HttpContext?.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value ?? "";
-            var user = await _userManager.FindByEmailAsync(email);
+            var user = await _context.Users
+                .Include(u => u.Carts)
+                .ThenInclude(c => c.Product)
+                .Where(u => u.Email == email)
+                .FirstOrDefaultAsync();
             if (user is null)
             {
                 throw new Exception("user is not authenticated");
@@ -36,19 +40,34 @@ namespace ecommerce.Hepers
         public async Task<bool> AddToCart(ProductCartDto productCartDto)
         {
             var user = await GetUserAsync();
-            var product = await _context.Products.FindAsync(productCartDto.ProductId);
+            var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == productCartDto.ProductId);
             if (product is null)
             {
                 throw new Exception("product not found");
             }
-            user.Carts.Add(new Cart
+
+            return await UpsertCart(user, productCartDto, product);
+        }
+
+        private async Task<bool> UpsertCart(User user, ProductCartDto productCartDto, Product product)
+        {
+            var cart = user.Carts.Where(c => c.ProductId == product.Id).FirstOrDefault();
+            if (cart is null)
             {
-                ProductId = product.Id,
-                Quantity = productCartDto.Quantity,
-                UserId = user.Id
-            });
+                user.Carts.Add(new Cart
+                {
+                    ProductId = product.Id,
+                    Quantity = productCartDto.Quantity,
+                    UserId = user.Id
+                });
+            }
+            else
+            {
+                cart.Quantity += productCartDto.Quantity;
+            }
 
             await _context.SaveChangesAsync();
+
             return true;
         }
 
@@ -69,31 +88,32 @@ namespace ecommerce.Hepers
             return true;
         }
 
-        public async Task<bool> UpdateInCart(UpdateProductCartDto productCartDto)
+        public async Task<bool> UpdateInCart(int id, UpdateProductCartDto productCartDto)
         {
             var user = await GetUserAsync();
-            var product = await _context.Products.FindAsync(productCartDto.ProductId);
-            var cart = await _context.Carts.Where(c => c.UserId == user.Id).FirstOrDefaultAsync(c => c.Id == productCartDto.CartId);
-            if (product is null)
-            {
-                throw new Exception("product not found");
-            }
+            var cart = user.Carts.Where(c => c.Id == id).FirstOrDefault();
 
             if (cart is null)
             {
                 throw new Exception("item not found");
             }
 
-            cart.Quantity = productCartDto.Quantity;
-            
+            cart.Quantity += productCartDto.Quantity;
+
             await _context.SaveChangesAsync();
             return true;
         }
 
-        public async Task<List<Cart>?> GetItems()
+        public async Task<IEnumerable<CartDto>?> GetItems()
         {
             var user = await GetUserAsync();
-            var carts = await _context.Carts.Where(c => c.UserId == user.Id).ToListAsync();
+            var carts = user.Carts.Select(c => new CartDto
+            {
+                Id = c.Id,
+                Quantity = c.Quantity,
+                ProductId = c.ProductId,
+                Product = c.Product
+            });
             return carts;
         }
     }

@@ -16,6 +16,8 @@ using Microsoft.AspNetCore.Authorization;
 using ecommerce.Hepers;
 using static Org.BouncyCastle.Math.EC.ECCurve;
 using ecommerce.Policies;
+using System.ComponentModel;
+using ecommerce.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,7 +25,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-}); ;
+});
 
 builder.Services.AddValidatorsFromAssemblyContaining<LoginUserValidator>();
 
@@ -80,6 +82,8 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<ICartRepository, CartRepository>();
+builder.Services.AddTransient<IOrderRepository, OrderRepository>();
+builder.Services.AddTransient<IOrderItemRepository, OrderItemRepository>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 
 services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();
@@ -92,7 +96,6 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("EmailConfirmedPolicy", policy =>
         policy.Requirements.Add(new EmailConfirmedRequirement()));
 });
-
 
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");

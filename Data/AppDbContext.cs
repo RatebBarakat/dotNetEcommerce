@@ -21,6 +21,8 @@ namespace ecommerce.Data
         public DbSet<Role> Roles { get; set; }
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<RolePermission> RolePermission { get; set; }
+        public DbSet<Order> Orders { get; set; }
+        public DbSet<OrderItem> OrderItems { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -52,6 +54,12 @@ namespace ecommerce.Data
                 .WithOne(e => e.product)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasForeignKey(e => e.ProductId);
+
+            builder.Entity<Order>()
+                .HasMany(e => e.Items)
+                .WithOne(e => e.Order)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasForeignKey(e => e.OrderId);
 
             builder.Entity<Product>()
                 .HasOne(e => e.Category);

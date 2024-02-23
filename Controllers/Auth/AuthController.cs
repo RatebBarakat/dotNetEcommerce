@@ -191,5 +191,13 @@ namespace ecommerce.Controllers.Auth
 
             return new ChallengeResult(provider, properties);
         }
+
+        [HttpPost("logout")]
+
+        public IActionResult logout ()
+        {
+            Response.Cookies.Delete("seid");
+            return Ok();
+        }
     }
 }

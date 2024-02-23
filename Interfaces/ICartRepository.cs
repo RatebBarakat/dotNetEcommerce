@@ -8,7 +8,7 @@ namespace ecommerce.Interfaces
     {
         public Task<bool> AddToCart(ProductCartDto productCartDto);
         public Task<bool> RemoveFromCart(int id);
-        public Task<bool> UpdateInCart(UpdateProductCartDto productCartDto);
-        public Task<List<Cart>?> GetItems();
+        public Task<bool> UpdateInCart(int id, UpdateProductCartDto productCartDto);
+        public Task<IEnumerable<CartDto>?> GetItems();
     }
 }

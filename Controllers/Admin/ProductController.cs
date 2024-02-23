@@ -22,7 +22,7 @@ namespace ecommerce.Controllers.Admin
         private readonly ExcelValidator _excelValidator;
         private readonly IValidator<CreateProductDTO> _productValidator;
 
-        public ProductController(AppDbContext context, IWebHostEnvironment env, 
+        public ProductController(AppDbContext context, IWebHostEnvironment env,
             IValidator<CreateProductDTO> productValidator, ExcelValidator excelValidator)
         {
             _context = context;
@@ -73,8 +73,16 @@ namespace ecommerce.Controllers.Admin
 
             if (!validationResult.IsValid)
             {
-                return BadRequest(new { Message = "errors", Errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+                return BadRequest(new
+                {
+                    Message = "errors",
+                    Errors = validationResult.Errors.ToDictionary(
+                        e => Tuple.Create(e.ErrorCode, e.ErrorMessage), 
+                        e => e.ErrorMessage
+                    )
+                });
             }
+
 
             var product = new Product
             {
@@ -223,7 +231,7 @@ namespace ecommerce.Controllers.Admin
                 List<Product> products = new();
                 var excel = new ExcelImportService<Product>(file);
                 var Count = excel.GetCountOfRows();
-                Dictionary<int,string> errorsRows = new();
+                Dictionary<int, string> errorsRows = new();
                 for (int i = 2; i < Count + 2; i++)
                 {
                     try
@@ -257,7 +265,7 @@ namespace ecommerce.Controllers.Admin
                     }
                 }
                 await _context.SaveChangesAsync();
-                return Ok(errorsRows.Count == 0 ? "categories imported successfully" : $"an error occurred in {string.Join(",",errorsRows.Values)}");
+                return Ok(errorsRows.Count == 0 ? "categories imported successfully" : $"an error occurred in {string.Join(",", errorsRows.Values)}");
             }
             catch (Exception e)
             {

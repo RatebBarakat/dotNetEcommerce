@@ -62,7 +62,7 @@ namespace ecommerce.Models
             if (firstImage != null)
             {
                 var imagePath = $"/uploads/images/{firstImage.Name}";
-                productDTO.image = $"{baseUrl}{imagePath}";
+                productDTO.Image = $"{baseUrl}{imagePath}";
             }
             return productDTO;
         }

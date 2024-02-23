@@ -22,7 +22,7 @@ namespace ecommerce.Excel
 
         public int GetCountOfRows()
         {
-            return _excelPackage.Workbook.Worksheets[0].Rows.Count();
+            return _excelPackage.Workbook.Worksheets[0].Rows.Count() + 1;
         }
 
         public string? GetAttributeValue(string propertyName, int rowNumber)
@@ -46,7 +46,7 @@ namespace ecommerce.Excel
             if (worksheet.Dimension == null || rowNumber > worksheet.Dimension.End.Row)
                 throw new ArgumentException($"Row number '{rowNumber}' exceeds the number of rows in the Excel sheet.");
 
-            string cellValue = worksheet.Cells[rowNumber, columnIndex].Value?.ToString();
+            string? cellValue = worksheet.Cells[rowNumber, columnIndex].Value?.ToString();
             return cellValue;
         }
 

@@ -1,11 +1,7 @@
-﻿using ecommerce.Data;
-using ecommerce.Helpers;
-using ecommerce.Models;
+﻿using ecommerce.Helpers;
 using ecommerce.Requirements;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
-using System.Threading.Tasks;
 
 namespace ecommerce.Handlers
 {

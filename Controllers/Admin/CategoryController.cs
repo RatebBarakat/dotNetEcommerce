@@ -109,7 +109,7 @@ namespace ecommerce.Controllers.Admin
                 List<Category> categories = new();
                 var excel = new ExcelImportService<Category>(file);
                 var Count = excel.GetCountOfRows();
-                for (int i = 2; i < Count + 2; i++)
+                for (int i = 2; i < Count; i++)
                 {
                     try
                     {
@@ -130,6 +130,7 @@ namespace ecommerce.Controllers.Admin
                     }
                 }
                 await _context.SaveChangesAsync();
+
                 return Ok("categories imported successfully");
             }
             catch (Exception e)

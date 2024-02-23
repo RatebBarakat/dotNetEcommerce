@@ -10,6 +10,9 @@ namespace ecommerce.Models
 
         [JsonIgnore]
         public virtual ICollection<Cart>? Carts { get; set; } = [];
+
+        [JsonIgnore]
+        public virtual ICollection<Order>? Orders { get; set; } = [];
     }
 }
 
