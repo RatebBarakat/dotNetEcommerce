@@ -21,10 +21,11 @@ namespace ecommerce.Controllers.Auth
         private readonly IAuthenticationSchemeProvider _authenticationSchemeProvider;
         private readonly SignInManager<User> _signinManager;
         private readonly UserManager<User> _userManager;
+        private readonly SendEmailVerificationLink _emailSender;
 
 
         public AuthController(IAuthService authService, IValidator<LoginUser> loginValidator, IValidator<RegisterUser> registerValidator,
-            IAuthenticationSchemeProvider authenticationSchemeProvider, SignInManager<User> signinManager, UserManager<User> userManager)
+            IAuthenticationSchemeProvider authenticationSchemeProvider, SignInManager<User> signinManager, UserManager<User> userManager, SendEmailVerificationLink emailSender)
         {
             _authService = authService;
             _registerValidator = registerValidator;
@@ -32,6 +33,7 @@ namespace ecommerce.Controllers.Auth
             _authenticationSchemeProvider = authenticationSchemeProvider;
             _signinManager = signinManager;
             _userManager = userManager;
+            _emailSender = emailSender;
         }
 
         [HttpGet("confirm")]
@@ -55,17 +57,19 @@ namespace ecommerce.Controllers.Auth
 
             var result = await _authService.RegisterUser(user);
 
-            if (result is OkResult)
+            var userData = await _userManager.FindByEmailAsync(user.Email);
+            var token = await _userManager.GenerateEmailConfirmationTokenAsync(userData);
+
+            var confirmationUrl = Url.Action("ConfirmEmail", "Auth", new { userId = userData.Id, code = token }, Request.Scheme);
+
+            if (confirmationUrl == null)
             {
-                return Ok("User registered successfully.");
-            }
-            else if (result is BadRequestObjectResult badRequestResult)
-            {
-                var errors = badRequestResult.Value as List<string>;
-                return BadRequest(new { Message = "Registration failed. Please check the provided information.", Errors = badRequestResult.Value });
+                return StatusCode(500, "Failed to generate confirmation URL.");
             }
 
-            return StatusCode(500, "An unexpected error occurred.");
+            var mail = _emailSender.SendAsync(user.Email, confirmationUrl);
+
+            return Ok(mail.Result);
         }
 
         [HttpGet("info")]
@@ -167,18 +171,6 @@ namespace ecommerce.Controllers.Auth
 
                 return Redirect(returnUrl);
             }
-        }
-
-
-        [HttpPost("testmail")]
-        public async Task<IActionResult> test(string email)
-        {
-            var user = await _userManager.FindByEmailAsync(email);
-            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            var url = Url.Action("confirm", "Auth", new { userId = user.Id, code = token });
-            var mail = SendEmailVerificationLink.SendAsync(email, token);
-
-            return Ok(new { result = mail.Status });
         }
 
         [AllowAnonymous]
