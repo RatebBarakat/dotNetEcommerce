@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using ecommerce.Data;
 using ecommerce.Dtos;
+using ecommerce.Emails;
 using ecommerce.Interfaces;
 using ecommerce.Models;
 using Microsoft.AspNetCore.Identity;
@@ -50,7 +51,7 @@ namespace ecommerce.Helpers
             {
                 var token = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
 
-                var confirmationLink = $"{_configuration["AppBaseUrl"]}/api/user/confirm-email?userId={identityUser.Id}&token={token}";
+
 
                 return new OkResult();
             }
