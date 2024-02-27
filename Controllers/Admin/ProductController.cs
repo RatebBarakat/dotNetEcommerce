@@ -11,6 +11,8 @@ using Microsoft.Extensions.Caching.Distributed;
 using ecommerce.Excel;
 using ecommerce.Validators;
 using System.Text;
+using System.Collections.Concurrent;
+using ecommerce.Services;
 
 namespace ecommerce.Controllers.Admin
 {
@@ -21,17 +23,19 @@ namespace ecommerce.Controllers.Admin
         private readonly AppDbContext _context;
         private readonly ExcelValidator _excelValidator;
         private readonly IValidator<CreateProductDTO> _productValidator;
+        private readonly ImageHelper _imageHelper;
 
-        public ProductController(AppDbContext context, IWebHostEnvironment env,
-            IValidator<CreateProductDTO> productValidator, ExcelValidator excelValidator)
+        public ProductController(AppDbContext context,
+            IValidator<CreateProductDTO> productValidator, ExcelValidator excelValidator, ImageHelper imageHelper)
         {
             _context = context;
             _productValidator = productValidator;
             _excelValidator = excelValidator;
+            _imageHelper = imageHelper;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts(int page = 1, int pageSize = 10,
+        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts(int page = 1, int pageSize = 100,
             [FromQuery] int categoryFilter = 0, [FromQuery] string search = "")
         {
             var products = _context.Products.Include(p => p.Category).Include(c => c.Images).AsQueryable();
@@ -46,10 +50,11 @@ namespace ecommerce.Controllers.Admin
             }
 
             string baseUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}";
-            var paginatedProducts = await PaginatedList<Product>.CreateAsync(products, page, 10);
+            var paginatedProducts = await PaginatedList<Product>.CreateAsync(products, page, pageSize);
 
             var data = paginatedProducts.data.Select(r => r.ToDto(baseUrl)).ToList();
-            var result = new PaginatedList<ProductDTO>(data, paginatedProducts.total, paginatedProducts.page, 10);
+
+            var result = new PaginatedList<ProductDTO>(data, paginatedProducts.total, paginatedProducts.page, pageSize);
             return Ok(result);
         }
 
@@ -77,7 +82,7 @@ namespace ecommerce.Controllers.Admin
                 {
                     Message = "errors",
                     Errors = validationResult.Errors.ToDictionary(
-                        e => Tuple.Create(e.ErrorCode, e.ErrorMessage), 
+                        e => e.PropertyName,
                         e => e.ErrorMessage
                     )
                 });
@@ -97,7 +102,7 @@ namespace ecommerce.Controllers.Admin
 
             foreach (var image in productDTO.Images)
             {
-                var imageFileName = await UploadImage(image);
+                var imageFileName = await _imageHelper.UploadImage(image);
                 product.Images.Add(new ProductImages
                 {
                     Name = imageFileName,
@@ -114,9 +119,18 @@ namespace ecommerce.Controllers.Admin
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProduct(int id, [FromForm] CreateProductDTO productDTO)
         {
-            if (!ModelState.IsValid)
+            var validationResult = await _productValidator.ValidateAsync(productDTO);
+
+            if (!validationResult.IsValid)
             {
-                return BadRequest(ModelState);
+                return BadRequest(new
+                {
+                    Message = "errors",
+                    Errors = validationResult.Errors.ToDictionary(
+                        e => e.PropertyName,
+                        e => e.ErrorMessage
+                    )
+                });
             }
 
             Product existingProduct = await _context.Products.FindAsync(id);
@@ -226,52 +240,68 @@ namespace ecommerce.Controllers.Admin
                 var status = _excelValidator.Validate(file);
                 if (!status.IsValid)
                 {
-                    return BadRequest("invalid file");
+                    return BadRequest("Invalid file");
                 }
-                List<Product> products = new();
-                var excel = new ExcelImportService<Product>(file);
-                var Count = excel.GetCountOfRows();
-                Dictionary<int, string> errorsRows = new();
-                for (int i = 2; i < Count + 2; i++)
-                {
-                    try
-                    {
-                        string? Name = excel.GetAttributeValue("Name", i);
-                        int Quantity;
-                        int.TryParse(excel.GetAttributeValue("Quantity", i), out Quantity);
-                        decimal Price;
-                        decimal.TryParse(excel.GetAttributeValue("Price", i).Trim(), out Price);
-                        string? SmallDescription = excel.GetAttributeValue("SmallDescription", i);
-                        string? Description = excel.GetAttributeValue("Description", i);
-                        string? categoryName = excel.GetAttributeValue("Category", i);
-                        int categoryId = await GetCategoryId(categoryName);
-                        errorsRows.Add(i, Price.ToString());
 
-                        _context.Products.Add(
-                            new Product
-                            {
-                                Name = Name,
-                                Quantity = Quantity,
-                                Price = Price,
-                                SmallDescription = SmallDescription ?? "",
-                                Description = Description ?? "",
-                                CategoryId = categoryId
-                            });
-                    }
-                    catch (Exception ex)
+                var excel = new ExcelImportService<Product>(file);
+                var count = excel.GetCountOfRows();
+                var batchSize = 50;
+
+                var errorsRows = new ConcurrentDictionary<int, string>();
+                var tasks = new List<Task>();
+
+                for (int i = 2; i < count + 2; i += batchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + batchSize, count + 2);
+
+                    tasks.Add(Task.Run(async () =>
                     {
-                        errorsRows.Add(i, ex.Message);
-                        continue;
-                    }
+                        for (int j = start; j < end; j++)
+                        {
+                            try
+                            {
+                                string? name = excel.GetAttributeValue("Name", j);
+                                int quantity;
+                                int.TryParse(excel.GetAttributeValue("Quantity", j), out quantity);
+                                decimal price;
+                                decimal.TryParse(excel.GetAttributeValue("Price", j).Trim(), out price);
+                                string? smallDescription = excel.GetAttributeValue("SmallDescription", j);
+                                string? description = excel.GetAttributeValue("Description", j);
+                                string? categoryName = excel.GetAttributeValue("Category", j);
+                                int categoryId = await GetCategoryId(categoryName);
+                                errorsRows.TryAdd(j, price.ToString());
+
+                                _context.Products.Add(new Product
+                                {
+                                    Name = name,
+                                    Quantity = quantity,
+                                    Price = price,
+                                    SmallDescription = smallDescription ?? "",
+                                    Description = description ?? "",
+                                    CategoryId = categoryId
+                                });
+                            }
+                            catch (Exception ex)
+                            {
+                                errorsRows.TryAdd(j, ex.Message);
+                            }
+                        }
+                    }));
                 }
+
+                await Task.WhenAll(tasks);
+                       
                 await _context.SaveChangesAsync();
-                return Ok(errorsRows.Count == 0 ? "categories imported successfully" : $"an error occurred in {string.Join(",", errorsRows.Values)}");
+
+                return Ok(errorsRows.IsEmpty ? "Products imported successfully" : $"An error occurred in rows: {string.Join(",", errorsRows.Keys)}");
             }
             catch (Exception e)
             {
-                return BadRequest($"an error occurred {e.Message} {e.InnerException}");
+                return BadRequest($"An error occurred: {e.Message}");
             }
         }
+
 
         private async Task<int> GetCategoryId(string name)
         {
