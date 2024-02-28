@@ -2,9 +2,9 @@
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 
-namespace ecommerce.Hepers
+namespace ecommerce.Services
 {
-    public class Redis: IRedis
+    public class Redis : IRedis
     {
         private readonly IDistributedCache _cache;
 
@@ -22,7 +22,7 @@ namespace ecommerce.Hepers
                 return JsonSerializer.Deserialize<T>(cachedData);
             }
 
-            return default; 
+            return default;
         }
 
         public async Task SetCachedDataAsync<T>(string cacheKey, T data, DistributedCacheEntryOptions options)
