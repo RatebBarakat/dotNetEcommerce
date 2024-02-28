@@ -3,6 +3,7 @@ using ecommerce.Filters;
 using ecommerce.Interfaces;
 using ecommerce.Models;
 using FluentValidation;
+using Hangfire;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -22,10 +23,10 @@ namespace ecommerce.Controllers.Auth
         private readonly SignInManager<User> _signinManager;
         private readonly UserManager<User> _userManager;
         private readonly SendEmailVerificationLink _emailSender;
-
+        private readonly IBackgroundJobClient _backgroundJobClient;
 
         public AuthController(IAuthService authService, IValidator<LoginUser> loginValidator, IValidator<RegisterUser> registerValidator,
-            IAuthenticationSchemeProvider authenticationSchemeProvider, SignInManager<User> signinManager, UserManager<User> userManager, SendEmailVerificationLink emailSender)
+            IAuthenticationSchemeProvider authenticationSchemeProvider, SignInManager<User> signinManager, UserManager<User> userManager, SendEmailVerificationLink emailSender, IBackgroundJobClient backgroundJobClient)
         {
             _authService = authService;
             _registerValidator = registerValidator;
@@ -34,6 +35,7 @@ namespace ecommerce.Controllers.Auth
             _signinManager = signinManager;
             _userManager = userManager;
             _emailSender = emailSender;
+            _backgroundJobClient = backgroundJobClient;
         }
 
         [HttpGet("confirm")]
@@ -67,9 +69,22 @@ namespace ecommerce.Controllers.Auth
                 return StatusCode(500, "Failed to generate confirmation URL.");
             }
 
-            var mail = _emailSender.SendAsync(user.Email, confirmationUrl);
+            Task sendMail = new Task(() =>
+            {
+                _emailSender.SendAsync(user.Email, confirmationUrl);
+            });
 
-            return Ok(mail.Result);
+            sendMail.Start();
+
+            string? accessToken = await _authService.GenerateJwtToken(user.Email);
+
+            Response.Cookies.Append("seid", accessToken, new Microsoft.AspNetCore.Http.CookieOptions
+            {
+                HttpOnly = true,
+                Expires = DateTime.UtcNow.AddHours(1)
+            });
+
+            return Ok("please confirm your email");
         }
 
         [HttpGet("info")]

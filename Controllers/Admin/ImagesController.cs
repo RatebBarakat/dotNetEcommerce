@@ -1,7 +1,9 @@
 ﻿using ecommerce.Data;
 using ecommerce.Dtos;
-using ecommerce.Hepers;
 using ecommerce.Models;
+using ecommerce.Services;
+using ecommerce.Validators;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,16 +17,34 @@ namespace ecommerce.Controllers.Admin
     {
         private readonly AppDbContext _context;
         private readonly ImageHelper _imageHelper;
+        private readonly ImageValidator _validator;
 
-        public ImagesController(AppDbContext context,ImageHelper imageHelper)
+        public ImagesController(AppDbContext context, ImageHelper imageHelper, ImageValidator validator)
         {
             _context = context;
             _imageHelper = imageHelper;
+            _validator = validator;
         }
 
         [HttpPost]
         public async Task<IActionResult> InsertImage(ImageDto model)
         {
+            foreach (var image in model.Images)
+            {
+                var validationResult = _validator.Validate(image);
+
+                if (!validationResult.IsValid)
+                {
+                    return BadRequest(new
+                    {
+                        Message = "errors",
+                        Errors = validationResult.Errors.ToDictionary(
+                            e => "Image",
+                            e => e.ErrorMessage
+                        )
+                    });
+                }
+            }
             var product = await _context.Products.Include(p => p.Images).FirstOrDefaultAsync(p => p.Id == model.ProductId);
 
             if (product is null)

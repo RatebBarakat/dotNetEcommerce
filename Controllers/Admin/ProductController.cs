@@ -240,65 +240,51 @@ namespace ecommerce.Controllers.Admin
                 var status = _excelValidator.Validate(file);
                 if (!status.IsValid)
                 {
-                    return BadRequest("Invalid file");
+                    return BadRequest("invalid file");
                 }
-
+                List<Product> products = new();
                 var excel = new ExcelImportService<Product>(file);
-                var count = excel.GetCountOfRows();
-                var batchSize = 50;
-
-                var errorsRows = new ConcurrentDictionary<int, string>();
-                var tasks = new List<Task>();
-
-                for (int i = 2; i < count + 2; i += batchSize)
+                var Count = excel.GetCountOfRows();
+                Dictionary<int, string> errorsRows = new();
+                for (int i = 2; i < Count + 2; i++)
                 {
-                    int start = i;
-                    int end = Math.Min(i + batchSize, count + 2);
-
-                    tasks.Add(Task.Run(async () =>
+                    try
                     {
-                        for (int j = start; j < end; j++)
-                        {
-                            try
-                            {
-                                string? name = excel.GetAttributeValue("Name", j);
-                                int quantity;
-                                int.TryParse(excel.GetAttributeValue("Quantity", j), out quantity);
-                                decimal price;
-                                decimal.TryParse(excel.GetAttributeValue("Price", j).Trim(), out price);
-                                string? smallDescription = excel.GetAttributeValue("SmallDescription", j);
-                                string? description = excel.GetAttributeValue("Description", j);
-                                string? categoryName = excel.GetAttributeValue("Category", j);
-                                int categoryId = await GetCategoryId(categoryName);
-                                errorsRows.TryAdd(j, price.ToString());
+                        string? Name = excel.GetAttributeValue("Name", i);
+                        int Quantity;
+                        int.TryParse(excel.GetAttributeValue("Quantity", i), out Quantity);
+                        decimal Price;
+                        decimal.TryParse(excel.GetAttributeValue("Price", i).Trim(), out Price);
+                        string? SmallDescription = excel.GetAttributeValue("SmallDescription", i);
+                        string? Description = excel.GetAttributeValue("Description", i);
+                        string? categoryName = excel.GetAttributeValue("Category", i);
+                        int categoryId = await GetCategoryId(categoryName);
+                        errorsRows.Add(i, Price.ToString());
 
-                                _context.Products.Add(new Product
-                                {
-                                    Name = name,
-                                    Quantity = quantity,
-                                    Price = price,
-                                    SmallDescription = smallDescription ?? "",
-                                    Description = description ?? "",
-                                    CategoryId = categoryId
-                                });
-                            }
-                            catch (Exception ex)
+                        _context.Products.Add(
+                            new Product
                             {
-                                errorsRows.TryAdd(j, ex.Message);
-                            }
-                        }
-                    }));
+                                Name = Name,
+                                Quantity = Quantity,
+                                Price = Price,
+                                SmallDescription = SmallDescription ?? "",
+                                Description = Description ?? "",
+                                CategoryId = categoryId
+                            });
+                    }
+                    catch (Exception ex)
+                    {
+                        errorsRows.Add(i, ex.Message);
+                        continue;
+                    }
                 }
-
-                await Task.WhenAll(tasks);
-                       
                 await _context.SaveChangesAsync();
 
-                return Ok(errorsRows.IsEmpty ? "Products imported successfully" : $"An error occurred in rows: {string.Join(",", errorsRows.Keys)}");
+                return Ok(errorsRows.Count == 0 ? "categories imported successfully" : $"an error occurred in {string.Join(",", errorsRows.Values)}");
             }
             catch (Exception e)
             {
-                return BadRequest($"An error occurred: {e.Message}");
+                return BadRequest($"an error occurred {e.Message} {e.InnerException}");
             }
         }
 

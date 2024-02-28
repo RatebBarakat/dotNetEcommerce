@@ -22,24 +22,19 @@ namespace ecommerce.Controllers.Admin
         private readonly ExcelValidator _excelValidator;
         private readonly IRedis _redis;
 
-        public CategoryController(AppDbContext context, IRedis redis, ExcelValidator excelValidator)
+        public CategoryController(AppDbContext context, ExcelValidator excelValidator)
         {
             _context = context;
-            _redis = redis;
             _excelValidator = excelValidator;
         }
 
         [HttpGet]
-        [HasPermissions("Permission:create-categories")]
-        public async Task<ActionResult<IEnumerable<PaginatedList<Category>>>> GetCategories()
+        [HasPermissions("Permission:manage-categories")]
+        public async Task<ActionResult<PaginatedList<Category>>> GetCategories([FromQuery] int page = 1, [FromQuery] string search = "")
         {
             var categories = _context.Categories.AsQueryable();
-            int page;
-            string search = "";
-            int.TryParse(HttpContext.Request.Query["page"].ToString(), out page);
-            search = HttpContext.Request.Query["search"];
 
-            if (!string.IsNullOrEmpty(search))
+            if (!string.IsNullOrWhiteSpace(search))
             {
                 categories = categories.Where(c => c.Name.ToLower().Contains(search.ToLower()));
             }
@@ -51,20 +46,21 @@ namespace ecommerce.Controllers.Admin
         [HttpGet("all")]
         public async Task<ActionResult<IEnumerable<Category>>> GetAllCategories()
         {
-            IEnumerable<Category> categories;
-            var categoriesFromCache = await _redis.GetCachedDataAsync<IEnumerable<Category>>("categories");
-            if (categoriesFromCache is not null)
-            {
-                categories = categoriesFromCache;
-            }
-            else
-            {
-                categories = await _context.Categories.ToListAsync();
-                await _redis.SetCachedDataAsync("categories", categories, new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpiration = DateTime.Now.AddHours(1),
-                });
-            }
+            /*            IEnumerable<Category> categories;
+                        var categoriesFromCache = await _redis.GetCachedDataAsync<IEnumerable<Category>>("categories");*/
+            /*            if (categoriesFromCache is not null)
+                        {
+                            categories = categoriesFromCache;
+                        }
+                        else
+                        {
+                            await _redis.SetCachedDataAsync("categories", categories, new DistributedCacheEntryOptions
+                            {
+                                AbsoluteExpiration = DateTime.Now.AddHours(1),
+                            });
+                        }*/
+            var categories = await _context.Categories.ToListAsync();
+
             return Ok(categories);
         }
 
@@ -83,6 +79,8 @@ namespace ecommerce.Controllers.Admin
         }
 
         [HttpPost]
+        [HasPermissions("Permission:create-categories")]
+
         public async Task<ActionResult<Category>> CreateCategory(Category category)
         {
             if (!ModelState.IsValid)
@@ -139,6 +137,7 @@ namespace ecommerce.Controllers.Admin
             }
         }
 
+        [HasPermissions("Permission:update-categories")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateCategory(int id, Category category)
         {
@@ -173,6 +172,7 @@ namespace ecommerce.Controllers.Admin
             return NoContent();
         }
 
+        [HasPermissions("Permission:delete-categories")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteCategory(int id)
         {
