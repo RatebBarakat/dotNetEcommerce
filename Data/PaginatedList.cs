@@ -2,17 +2,17 @@
 
 namespace ecommerce.Data
 {
-    public class PaginatedList<T> 
+    public class PaginatedList<T>
     {
         public int page { get; set; }
 
         public ICollection<T> data { get; set; }
         public int total { get; set; }
 
-        public PaginatedList(List<T> items, int count, int pageIndex, int pageSize)
+        public PaginatedList(List<T> items, int total, int pageIndex, int pageSize)
         {
             page = pageIndex;
-            total = (int)Math.Ceiling(count / (double)pageSize);
+            this.total = total;
             data = items;
         }
 
@@ -25,8 +25,8 @@ namespace ecommerce.Data
             int page = pageIndex > 0 ? pageIndex : 1;
             var count = await source.CountAsync();
             var items = await source.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-            var totalPages = (int)Math.Ceiling(count / (double)pageSize);
-            return new PaginatedList<T>(items, count, page, pageSize);
+            var total = (int)Math.Ceiling((decimal)count / pageSize);
+            return new PaginatedList<T>(items, total, page, pageSize);
         }
 
     }
