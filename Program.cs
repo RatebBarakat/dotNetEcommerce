@@ -13,11 +13,12 @@ using ecommerce.Helpers;
 using ecommerce.Attributes;
 using ecommerce.Handlers;
 using Microsoft.AspNetCore.Authorization;
-using ecommerce.Hepers;
 using static Org.BouncyCastle.Math.EC.ECCurve;
 using ecommerce.Policies;
 using System.ComponentModel;
 using ecommerce.Services;
+using ecommerce.Emails;
+using Hangfire;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +31,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddValidatorsFromAssemblyContaining<LoginUserValidator>();
 
 builder.Services.AddTransient<IAuthService, AuthService>();
+builder.Services.AddTransient<SendEmailVerificationLink>();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -65,6 +67,9 @@ builder.Services.AddStackExchangeRedisCache(redisOptions =>
     var config = builder.Configuration.GetConnectionString("Redis");
     redisOptions.Configuration = config;
 });
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddHangfire(c => c.UseSqlServerStorage(connectionString));
+builder.Services.AddHangfireServer();
 
 var services = builder.Services;
 var configuration = builder.Configuration;
@@ -98,7 +103,6 @@ builder.Services.AddAuthorization(options =>
 });
 
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
 builder.Services.AddIdentity<User, Role>(options =>
@@ -149,6 +153,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseStaticFiles();
+app.UseHangfireDashboard();
 
 app.UseHttpsRedirection();
 

@@ -20,9 +20,8 @@ namespace ecommerce.Validators
             RuleFor(p => p.Quantity).InclusiveBetween(0, 1000);
             RuleFor(p => p.CategoryId).MustAsync(CategoryExists).WithMessage("category doesn't exists");
             RuleFor(p => p.Images)
-                .Must(x => x.Count > 0).WithMessage("ypu should upload at least one image")
-                .Must(x => x.Count <= 5).WithMessage("ypu cant upload more than 5 images");
-            RuleForEach(p => p.Images).SetValidator(new ImageValidator());
+                .Must(x => x.Count <= 5).WithMessage("you can't upload more than 5 images");
+            RuleForEach(p => p.Images).SetValidator(new ImageValidator()).WithName("Images");
         }
 
         private async Task<bool> CategoryExists(int id, CancellationToken cancellationToken)

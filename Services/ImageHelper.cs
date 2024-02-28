@@ -1,6 +1,6 @@
 ﻿using ecommerce.Data;
 
-namespace ecommerce.Hepers
+namespace ecommerce.Services
 {
     public class ImageHelper
     {

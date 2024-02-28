@@ -42,24 +42,16 @@ namespace ecommerce.Helpers
             {
                 UserName = user.UserName,
                 Email = user.Email,
-                TwoFactorEnabled = true
             };
 
             var result = await _userManager.CreateAsync(identityUser, user.Password);
 
-            if (result.Succeeded)
-            {
-                var token = await _userManager.GenerateEmailConfirmationTokenAsync(identityUser);
-
-
-
-                return new OkResult();
-            }
-            else
+            if (!result.Succeeded)
             {
                 var errors = result.Errors.Select(error => error.Description).ToList();
                 return new BadRequestObjectResult(new { Errors = errors });
             }
+            return new OkResult();
         }
 
         public async Task<IActionResult> ConfirmEmail(string userId, string token)
@@ -123,7 +115,7 @@ namespace ecommerce.Helpers
         public async Task<string?> GenerateJwtToken(string email)
         {
             var user = await _userManager.FindByEmailAsync(email);
-            if (user != null && user.EmailConfirmed)
+            if (user != null)
             {
                 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
                 var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

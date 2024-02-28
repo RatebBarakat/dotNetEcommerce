@@ -2,24 +2,20 @@
 using ecommerce.Dtos;
 using ecommerce.Interfaces;
 using ecommerce.Models;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
-namespace ecommerce.Hepers
+namespace ecommerce.Services
 {
     public class CartRepository : ICartRepository
     {
         private readonly AppDbContext _context;
         private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly UserManager<User> _userManager;
 
-        public CartRepository(AppDbContext context, IHttpContextAccessor httpContextAccessor, UserManager<User> userManager)
+        public CartRepository(AppDbContext context, IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
             _httpContextAccessor = httpContextAccessor;
-            _userManager = userManager;
         }
 
         private async Task<User?> GetUserAsync()

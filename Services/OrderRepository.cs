@@ -14,15 +14,13 @@ namespace ecommerce.Services
     {
         private readonly AppDbContext _context;
         private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly UserManager<User> _userManager;
         private readonly IOrderItemRepository _orderItemRepository;
 
-        public OrderRepository(IOrderItemRepository orderItemRepository, AppDbContext context, IHttpContextAccessor httpContextAccessor, UserManager<User> userManager)
+        public OrderRepository(IOrderItemRepository orderItemRepository, AppDbContext context, IHttpContextAccessor httpContextAccessor)
         {
             _orderItemRepository = orderItemRepository;
             _context = context;
             _httpContextAccessor = httpContextAccessor;
-            _userManager = userManager;
         }
         private async Task<User?> GetUserAsync()
         {
