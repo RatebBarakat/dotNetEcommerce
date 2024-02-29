@@ -13,6 +13,7 @@ using ecommerce.Validators;
 using System.Text;
 using System.Collections.Concurrent;
 using ecommerce.Services;
+using Hangfire;
 
 namespace ecommerce.Controllers.Admin
 {
@@ -35,7 +36,7 @@ namespace ecommerce.Controllers.Admin
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts(int page = 1, int pageSize = 100,
+        public async Task<ActionResult<IEnumerable<PaginatedList<ProductDTO>>>> GetProducts(int page = 1, int pageSize = 50,
             [FromQuery] int categoryFilter = 0, [FromQuery] string search = "")
         {
             var products = _context.Products.Include(p => p.Category).Include(c => c.Images).AsQueryable();
@@ -55,6 +56,7 @@ namespace ecommerce.Controllers.Admin
             var data = paginatedProducts.data.Select(r => r.ToDto(baseUrl)).ToList();
 
             var result = new PaginatedList<ProductDTO>(data, paginatedProducts.total, paginatedProducts.page, pageSize);
+
             return Ok(result);
         }
 
@@ -232,6 +234,7 @@ namespace ecommerce.Controllers.Admin
             return false;
         }
 
+
         [HttpPost("import")]
         public async Task<ActionResult<Product>> ImportFromExcel(IFormFile file)
         {
@@ -242,45 +245,25 @@ namespace ecommerce.Controllers.Admin
                 {
                     return BadRequest("invalid file");
                 }
+
+                int size = 100;
+
                 List<Product> products = new();
                 var excel = new ExcelImportService<Product>(file);
                 var Count = excel.GetCountOfRows();
                 Dictionary<int, string> errorsRows = new();
-                for (int i = 2; i < Count + 2; i++)
+
+                for (int start = 2; start < Count + 2; start += size)
                 {
-                    try
-                    {
-                        string? Name = excel.GetAttributeValue("Name", i);
-                        int Quantity;
-                        int.TryParse(excel.GetAttributeValue("Quantity", i), out Quantity);
-                        decimal Price;
-                        decimal.TryParse(excel.GetAttributeValue("Price", i).Trim(), out Price);
-                        string? SmallDescription = excel.GetAttributeValue("SmallDescription", i);
-                        string? Description = excel.GetAttributeValue("Description", i);
-                        string? categoryName = excel.GetAttributeValue("Category", i);
-                        int categoryId = await GetCategoryId(categoryName);
-                        errorsRows.Add(i, Price.ToString());
+                    var end = Math.Min(start + size, Count + 2);
+                    var data = excel.GetRowsInRange(start, end);
 
-                        _context.Products.Add(
-                            new Product
-                            {
-                                Name = Name,
-                                Quantity = Quantity,
-                                Price = Price,
-                                SmallDescription = SmallDescription ?? "",
-                                Description = Description ?? "",
-                                CategoryId = categoryId
-                            });
-                    }
-                    catch (Exception ex)
-                    {
-                        errorsRows.Add(i, ex.Message);
-                        continue;
-                    }
+                    BackgroundJob.Enqueue(() => ImportFromChunk(data));
+
+                    products.Clear();
                 }
-                await _context.SaveChangesAsync();
 
-                return Ok(errorsRows.Count == 0 ? "categories imported successfully" : $"an error occurred in {string.Join(",", errorsRows.Values)}");
+                return Ok("excel file is beeing imported in the background");
             }
             catch (Exception e)
             {
@@ -288,6 +271,35 @@ namespace ecommerce.Controllers.Admin
             }
         }
 
+        public async Task ImportFromChunk(Dictionary<int, Dictionary<string, string?>> chunkData)
+        {
+            var products = new List<Product>();
+            foreach (var rowNumber in chunkData.Keys)
+            {
+                var rowData = chunkData[rowNumber];
+                string? Name = rowData["Name"];
+                int Quantity = int.Parse(rowData["Quantity"]);
+                decimal Price = decimal.Parse(rowData["Price"].Trim());
+                string? SmallDescription = rowData["SmallDescription"];
+                string? Description = rowData["Description"];
+                string? categoryName = rowData["Category"];
+                int categoryId = await GetCategoryId(categoryName);
+
+                products.Add(new Product
+                {
+                    Name = Name,
+                    Quantity = Quantity,
+                    Price = Price,
+                    SmallDescription = SmallDescription ?? "",
+                    Description = Description ?? "",
+                    CategoryId = categoryId
+                });
+            }
+
+            _context.Products.AddRange(products);
+
+            await _context.SaveChangesAsync();
+        }
 
         private async Task<int> GetCategoryId(string name)
         {

@@ -67,5 +67,33 @@ namespace ecommerce.Excel
             return columnIndex;
         }
 
+        public Dictionary<int, Dictionary<string, string?>> GetRowsInRange(int startRow, int endRow)
+        {
+            var worksheet = _excelPackage.Workbook.Worksheets[0];
+            var rows = new Dictionary<int, Dictionary<string, string?>>();
+
+            for (int row = startRow; row <= endRow; row++)
+            {
+                var rowData = new Dictionary<string, string?>();
+                foreach (var property in typeof(T).GetProperties())
+                {
+                    var propertyName = property.Name;
+                    var columnIndex = GetColumnIndex(worksheet, propertyName);
+
+                    if (columnIndex != -1)
+                    {
+                        var cellValue = worksheet.Cells[row, columnIndex].Value?.ToString();
+                        rowData.Add(propertyName, cellValue);
+                    }
+                    else
+                    {
+                        rowData.Add(propertyName, null);
+                    }
+                }
+                rows.Add(row, rowData);
+            }
+
+            return rows;
+        }
     }
 }
