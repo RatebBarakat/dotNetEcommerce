@@ -1,7 +1,6 @@
 ﻿using ecommerce.Data;
 using ecommerce.Dtos;
 using ecommerce.Interfaces;
-using ecommerce.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,27 +36,28 @@ namespace ecommerce.Controllers.Users
             }
 
             var categories = await _context.Categories
-                .Include(c => c.Products)
-                .ThenInclude(p => p.Images)
-                .Where(p => p.Products.Any())
-                .OrderBy(product => Guid.NewGuid())
-                .Skip(skipper)
-                .Take(5)
-                .Select(c => new CategoryDto
-                {
-                    Name = c.Name,
-                    Products = c.Products.Select(p => new ProductDTO
-                    {
-                        Id = p.Id,
-                        Name = p.Name,
-                        Price = p.Price,
-                        Quantity = p.Quantity,
-                        Image = p.Images.Count > 0 ?
-                            $"{baseUrl}/uploads/images/{p.Images.FirstOrDefault().Name}"
-                            : null
-                    }).ToList()
-                })
-                .ToListAsync();
+             .Include(c => c.Products) 
+                 .ThenInclude(p => p.Images)
+             .Where(c => c.Products.Any())
+             .OrderBy(product => Guid.NewGuid())
+             .Skip(skipper)
+             .Take(5)
+             .Select(c => new CategoryDto
+             {
+                 Name = c.Name,
+                 Products = c.Products.Take(5) 
+                     .Select(p => new ProductDTO
+                     {
+                         Id = p.Id,
+                         Name = p.Name,
+                         Price = p.Price,
+                         Quantity = p.Quantity,
+                         Image = p.Images.Count > 0 ?
+                             $"{baseUrl}/uploads/images/{p.Images.FirstOrDefault().Name}" : null
+                     }).ToList()
+             })
+             .ToListAsync();
+
 
             _redis.SetCachedDataAsync<List<CategoryDto>>("HomePageRandomCategories", categories, new Microsoft.Extensions.Caching.Distributed.DistributedCacheEntryOptions
             {
