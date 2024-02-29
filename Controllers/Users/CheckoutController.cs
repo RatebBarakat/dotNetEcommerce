@@ -27,9 +27,15 @@ namespace ecommerce.Controllers.Users
         [HttpPost]
         public async Task<IActionResult> Checkout(CreateOrderDto orderDto)
         {
-            await _orderRepository.StartCheckout(orderDto);
+            try
+            {
+                await _orderRepository.StartCheckout(orderDto);
 
-            return NoContent();
+                return NoContent();
+            } catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
     }
 }
