@@ -36,15 +36,17 @@ namespace ecommerce.Helpers
             _roleManager = roleManager;
         }
 
-        public async Task<IActionResult> RegisterUser(RegisterUser user)
+        public async Task<IActionResult> RegisterUser(RegisterUser user, bool verified = false)
         {
             var identityUser = new User
             {
                 UserName = user.UserName,
                 Email = user.Email,
+                EmailConfirmed = verified,
             };
 
             var result = await _userManager.CreateAsync(identityUser, user.Password);
+            _userManager.AddToRoleAsync(identityUser, "user"); 
 
             if (!result.Succeeded)
             {
@@ -74,13 +76,14 @@ namespace ecommerce.Helpers
         {
             var claimsIdentity = _httpContextAccessor.HttpContext.User.Identity;
             var emailClaim = ((ClaimsIdentity)claimsIdentity).FindFirst(ClaimTypes.Email)?.Value;
-
+           
             if (emailClaim != null)
             {
                 var user = await _userManager.FindByEmailAsync(emailClaim);
                 if (user != null)
                 {
                     var roles = await _userManager.GetRolesAsync(user);
+                    bool isAdmin = roles.Any(r => r == "Admin");
 
                     var permissions = new HashSet<string>();
                     foreach (var roleName in roles)
@@ -105,7 +108,8 @@ namespace ecommerce.Helpers
                             Email = user.Email,
                             IsEmailConfirmed = user.EmailConfirmed
                         },
-                        Permissions = permissions.ToList()
+                        Permissions = permissions.ToList(),
+                        IsAdmin = isAdmin,
                     };
                 }
             }
@@ -135,7 +139,7 @@ namespace ecommerce.Helpers
                 return new JwtSecurityTokenHandler().WriteToken(token);
             }
 
-            return null;
+            throw new Exception("user not found");
         }
 
         public async Task<bool> CheckUserCredentials(LoginUser loginuser)
