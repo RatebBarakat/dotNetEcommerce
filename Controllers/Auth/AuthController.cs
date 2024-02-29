@@ -3,6 +3,7 @@ using ecommerce.Filters;
 using ecommerce.Interfaces;
 using ecommerce.Models;
 using FluentValidation;
+using Google.Apis.Auth;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -43,7 +44,11 @@ namespace ecommerce.Controllers.Auth
         {
             var user = await _userManager.FindByIdAsync(userId);
             var data = await _userManager.ConfirmEmailAsync(user, code);
-            return Ok(data.Succeeded);
+            if (data.Succeeded)
+            {
+                return Redirect("http://localhost:5173/");
+            }
+            return BadRequest("can't confirm your email");
         }
 
         [HttpPost("register")]
@@ -137,66 +142,39 @@ namespace ecommerce.Controllers.Auth
             return BadRequest(new { Errors = "invalid login credentials" });
         }
 
-        [HttpGet("google/callback")]
+        [HttpPost("google/login")]
         [AllowAnonymous]
-        public async Task<IActionResult> ExternalLoginCallback(string? returnUrl = null, string? remoteError = null)
+        public async Task<IActionResult> ExternalLoginCallback([FromBody] string code)
         {
-            var info = await _signinManager.GetExternalLoginInfoAsync();
-            if (info is null)
+            GoogleJsonWebSignature.ValidationSettings settings = new GoogleJsonWebSignature.ValidationSettings()
             {
-                return BadRequest("An error occurred");
-            }
+                Audience = new[] { "451812955571-dajpm95u4r5kt9dmfla84d9u62c9g0ed.apps.googleusercontent.com" }
+            };
 
-            var result = await _signinManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false);
+            GoogleJsonWebSignature.Payload payload = await GoogleJsonWebSignature.ValidateAsync(code, settings);
 
-            if (result.Succeeded)
+            var user = await _userManager.FindByEmailAsync(payload.Email);
+            string? token = string.Empty;
+
+            if (user is null)
             {
-                await _signinManager.UpdateExternalAuthenticationTokensAsync(info);
-                return Redirect(returnUrl);
-            }
-            else
-            {
-                var email = info.Principal.FindFirstValue(ClaimTypes.Email);
-
-                var user = await _userManager.FindByEmailAsync(email);
-
-                if (user == null)
+                await _authService.RegisterUser(new RegisterUser
                 {
-                    user = new User
-                    {
-                        UserName = email,
-                        Email = email,
-                        EmailConfirmed = true
-                    };
-
-                    var createResult = await _userManager.CreateAsync(user);
-                    if (!createResult.Succeeded)
-                    {
-                        return BadRequest("User creation failed");
-                    }
-                }
-
-                var addLoginResult = await _userManager.AddLoginAsync(user, info);
-                if (!addLoginResult.Succeeded)
-                {
-                    return BadRequest("Adding external login failed");
-                }
-
-                await _signinManager.SignInAsync(user, isPersistent: false);
-
-                return Redirect(returnUrl);
+                    Email = payload.Email,
+                    Password = "RandomPass@11$",//fake password till now
+                    PasswordConfirm = "RandomPass@11$",
+                    UserName = payload.GivenName,
+                }, true);
             }
-        }
 
-        [AllowAnonymous]
-        [HttpGet("google/redirect")]
-        public IActionResult ExternalLogin(string provider)
-        {
-            var returnUrl = Url.Content("~/");
-            var redirectUrl = Url.Action("ExternalLoginCallback", "Auth", new { returnUrl = returnUrl});
-            var properties = _signinManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+            token = await _authService.GenerateJwtToken(payload.Email);
 
-            return new ChallengeResult(provider, properties);
+            Response.Cookies.Append("seid", token, new Microsoft.AspNetCore.Http.CookieOptions
+            {
+                HttpOnly = true,
+                Expires = DateTime.UtcNow.AddHours(1)
+            });
+            return Ok(payload);
         }
 
         [HttpPost("logout")]
