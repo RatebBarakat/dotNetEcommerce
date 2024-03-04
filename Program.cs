@@ -19,6 +19,8 @@ using System.ComponentModel;
 using ecommerce.Services;
 using ecommerce.Emails;
 using Hangfire;
+using ecommerce.Services.Excel;
+using ecommerce.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,7 +73,6 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddHangfire(c => c.UseSqlServerStorage(connectionString));
 builder.Services.AddHangfireServer();
 
-var services = builder.Services;
 var configuration = builder.Configuration;
 
 builder.Services.AddCors(options =>
@@ -85,16 +86,20 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddSignalR();
+
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddScoped<ICartRepository, CartRepository>();
 builder.Services.AddTransient<IOrderRepository, OrderRepository>();
 builder.Services.AddTransient<IOrderItemRepository, OrderItemRepository>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 
-services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();
-services.AddSingleton<IRedis, Redis>();
-services.AddSingleton<ImageHelper>();
-services.AddTransient<PermissionHelper>();
+builder.Services.AddScoped<IAuthorizationHandler, EmailConfirmedRequirementHandler>();
+builder.Services.AddSingleton<IRedis, Redis>();
+builder.Services.AddSingleton<ImageHelper>();
+builder.Services.AddTransient<PermissionHelper>();
+builder.Services.AddTransient<ProductExcelImportService>();
+builder.Services.AddTransient<CategoryExcelImportService>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -144,6 +149,8 @@ builder.Services.AddAuthentication(options =>
 
 var app = builder.Build();
 
+app.UseRouting();
+
 app.UseCors("all");
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -159,6 +166,11 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapHub<NotificationHub>("/notifications");
+});
 
 app.MapControllers();
 

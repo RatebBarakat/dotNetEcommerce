@@ -1,19 +1,17 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ecommerce.Models;
 using ecommerce.Data;
 using ecommerce.Dtos;
 using FluentValidation;
-using Microsoft.Extensions.Caching.Distributed;
 using ecommerce.Excel;
 using ecommerce.Validators;
-using System.Text;
-using System.Collections.Concurrent;
 using ecommerce.Services;
 using Hangfire;
+using ecommerce.Services.Excel;
+using ecommerce.Hubs;
+using Microsoft.AspNetCore.SignalR;
+using System.Security.Claims;
 
 namespace ecommerce.Controllers.Admin
 {
@@ -25,14 +23,18 @@ namespace ecommerce.Controllers.Admin
         private readonly ExcelValidator _excelValidator;
         private readonly IValidator<CreateProductDTO> _productValidator;
         private readonly ImageHelper _imageHelper;
+        private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly ProductExcelImportService _excelService;
 
         public ProductController(AppDbContext context,
-            IValidator<CreateProductDTO> productValidator, ExcelValidator excelValidator, ImageHelper imageHelper)
+            IValidator<CreateProductDTO> productValidator, ExcelValidator excelValidator, ImageHelper imageHelper, IWebHostEnvironment webHostEnvironment, ProductExcelImportService excelService)
         {
             _context = context;
             _productValidator = productValidator;
             _excelValidator = excelValidator;
             _imageHelper = imageHelper;
+            _webHostEnvironment = webHostEnvironment;
+            _excelService = excelService;
         }
 
         [HttpGet]
@@ -117,7 +119,6 @@ namespace ecommerce.Controllers.Admin
             return Ok(product);
         }
 
-
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProduct(int id, [FromForm] CreateProductDTO productDTO)
         {
@@ -168,7 +169,6 @@ namespace ecommerce.Controllers.Admin
             return NoContent();
         }
 
-
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
@@ -200,43 +200,8 @@ namespace ecommerce.Controllers.Admin
             return NoContent();
         }
 
-        private async Task<string> UploadImage(IFormFile file)
-        {
-            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", @"uploads/images");
-
-            if (!Directory.Exists(uploadsFolder))
-            {
-                Directory.CreateDirectory(uploadsFolder);
-            }
-
-            var fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
-            var filePath = Path.Combine(uploadsFolder, fileName);
-
-            using (var stream = new FileStream(filePath, FileMode.Create))
-            {
-                await file.CopyToAsync(stream);
-            }
-
-            return fileName;
-        }
-
-        private async Task<bool> DeleteImage(string name)
-        {
-            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", @"uploads/images");
-
-            var filePath = Path.Combine(uploadsFolder, name);
-
-            if (System.IO.File.Exists(filePath))
-            {
-                System.IO.File.Delete(filePath);
-                return true;
-            }
-            return false;
-        }
-
-
         [HttpPost("import")]
-        public async Task<ActionResult<Product>> ImportFromExcel(IFormFile file)
+        public IActionResult ImportFromExcel(IFormFile file)
         {
             try
             {
@@ -247,23 +212,13 @@ namespace ecommerce.Controllers.Admin
                 }
 
                 int size = 100;
+                var fileName = SaveFile(file);
+                var claimsIdentity = HttpContext.User.Identity;
+                var emailClaim = ((ClaimsIdentity)claimsIdentity).FindFirst(ClaimTypes.Email)?.Value;
 
-                List<Product> products = new();
-                var excel = new ExcelImportService<Product>(file);
-                var Count = excel.GetCountOfRows();
-                Dictionary<int, string> errorsRows = new();
+                BackgroundJob.Enqueue(() => _excelService.Start(fileName, 100,emailClaim));
 
-                for (int start = 2; start < Count + 2; start += size)
-                {
-                    var end = Math.Min(start + size, Count + 2);
-                    var data = excel.GetRowsInRange(start, end);
-
-                    BackgroundJob.Enqueue(() => ImportFromChunk(data));
-
-                    products.Clear();
-                }
-
-                return Ok("excel file is beeing imported in the background");
+                return Ok("excel file is being imported in the background");
             }
             catch (Exception e)
             {
@@ -271,62 +226,20 @@ namespace ecommerce.Controllers.Admin
             }
         }
 
-        public async Task ImportFromChunk(Dictionary<int, Dictionary<string, string?>> chunkData)
+        private string SaveFile(IFormFile file)
         {
-            var products = new List<Product>();
-            foreach (var rowNumber in chunkData.Keys)
-            {
-                var rowData = chunkData[rowNumber];
-                string? Name = rowData["Name"];
-                int Quantity = int.Parse(rowData["Quantity"]);
-                decimal Price = decimal.Parse(rowData["Price"].Trim());
-                string? SmallDescription = rowData["SmallDescription"];
-                string? Description = rowData["Description"];
-                string? categoryName = rowData["Category"];
-                int categoryId = await GetCategoryId(categoryName);
+            var uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "excel");
+            Directory.CreateDirectory(uploadsFolder);
 
-                products.Add(new Product
-                {
-                    Name = Name,
-                    Quantity = Quantity,
-                    Price = Price,
-                    SmallDescription = SmallDescription ?? "",
-                    Description = Description ?? "",
-                    CategoryId = categoryId
-                });
+            var fileName = $"{Guid.NewGuid()}-{Path.GetFileName(file.FileName)}";
+            var filePath = Path.Combine(uploadsFolder, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                file.CopyTo(stream);
             }
 
-            _context.Products.AddRange(products);
-
-            await _context.SaveChangesAsync();
+            return filePath;
         }
-
-        private async Task<int> GetCategoryId(string name)
-        {
-            if (string.IsNullOrEmpty(name))
-            {
-                throw new ArgumentNullException("name of category is required");
-            }
-
-            var category = await _context.Categories.FirstOrDefaultAsync(c => c.Name == name);
-
-            if (category != null)
-            {
-                return category.Id;
-            }
-            else
-            {
-                var newCat = await _context.Categories.AddAsync(new Category
-                {
-                    Name = name
-                });
-
-                await _context.SaveChangesAsync();
-
-                return newCat.Entity.Id;
-            }
-        }
-
-
     }
 }
